@@ -1,5 +1,4 @@
 import type {
-	INodeProperties,
 	INodeType,
 	INodeTypeDescription,
 	// JsonObject, // Removed unused import
@@ -7,288 +6,19 @@ import type {
 // import { NodeConnectionType, NodeOperationError } from 'n8n-workflow'; // Removed unused NodeConnectionType
 // import { NodeOperationError } from 'n8n-workflow'; // Removed unused NodeOperationError
 
-// --- Reusable Property Definitions ---
-
-const sharedUrlProperty: INodeProperties = {
-	displayName: 'URL',
-	name: 'url',
-	type: 'string',
-	default: '',
-	required: true,
-	placeholder: 'https://example.com',
-	description: 'The full URL (including http:// or https://) of the page to process',
-	hint: 'Enter the complete URL, e.g., https://n8n.io',
-};
-
-const sharedHtmlProperty: INodeProperties = {
-	displayName: 'HTML Content',
-	name: 'htmlInput', // Renamed to avoid conflict
-	type: 'string',
-	default: '',
-	required: true,
-	typeOptions: {
-		editor: 'htmlEditor',
-		rows: 10,
-	},
-	placeholder: '<html><body>Hello World!</body></html>',
-	description: 'The HTML content to render, including CSS in <style> tags if needed',
-};
-
-const sharedSourceProperty: INodeProperties = {
-	displayName: 'Source',
-	name: 'source',
-	type: 'options',
-	options: [
-		{ name: 'URL', value: 'url' },
-		{ name: 'HTML', value: 'html' },
-	],
-	default: 'url',
-	description: 'Specify whether to render a URL or provided HTML content',
-};
-
-const rejectResourceTypesProperty: INodeProperties = {
-	displayName: 'Reject Resource Types',
-	name: 'rejectResourceTypes',
-	type: 'multiOptions',
-	options: [
-		{ name: 'Image', value: 'image' },
-		{ name: 'Stylesheet', value: 'stylesheet' },
-		{ name: 'Script', value: 'script' },
-		{ name: 'Font', value: 'font' },
-		{ name: 'Media', value: 'media' },
-		{ name: 'WebSocket', value: 'websocket' },
-		{ name: 'Other', value: 'other' },
-	],
-	default: [],
-	description: 'Specify resource types to block during rendering (e.g., images, scripts).',
-};
-
-const rejectRequestPatternProperty: INodeProperties = {
-	displayName: 'Reject Request Pattern',
-	name: 'rejectRequestPattern',
-	type: 'string',
-	typeOptions: { multipleValues: true, multipleValueButtonText: 'Add Pattern' },
-	default: [],
-	placeholder: '/^.*\\\\.(css|js)$/',
-	description: 'Block requests matching these regex patterns (one pattern per entry).',
-};
-
-const viewportProperty: INodeProperties = {
-	displayName: 'Viewport',
-	name: 'viewport',
-	type: 'fixedCollection',
-	default: {},
-	description: 'Set the browser viewport size.',
-	placeholder: 'Add Viewport Size',
-	typeOptions: {
-		multipleValues: false,
-		properties: [
-			{
-				displayName: 'Width',
-				name: 'width',
-				type: 'number',
-				typeOptions: { numberStepSize: 10, minValue: 1 },
-				default: 1280,
-				description: 'Viewport width in pixels.',
-			},
-			{
-				displayName: 'Height',
-				name: 'height',
-				type: 'number',
-				typeOptions: { numberStepSize: 10, minValue: 1 },
-				default: 720,
-				description: 'Viewport height in pixels.',
-			},
-			{
-				displayName: 'Device Scale Factor',
-				name: 'deviceScaleFactor',
-				type: 'number',
-				typeOptions: { numberStepSize: 0.1, minValue: 1 },
-				default: 1,
-				description: 'Specify device scale factor (e.g., 2 for Retina displays).',
-			},
-		],
-	},
-};
-
-const gotoOptionsProperty: INodeProperties = {
-	displayName: 'Navigation Options (Simplified)',
-	name: 'gotoOptions',
-	type: 'fixedCollection',
-	default: {},
-	description: 'Control page navigation behavior (subset of Puppeteer options).',
-	placeholder: 'Add Navigation Option',
-	typeOptions: {
-		multipleValues: false,
-		properties: [
-			{
-				displayName: 'Wait Until',
-				name: 'waitUntil',
-				type: 'options',
-				options: [
-					{ name: 'load', value: 'load', description: 'Wait for the load event' },
-					{ name: 'DOMContentLoaded', value: 'domcontentloaded', description: 'Wait for DOMContentLoaded event' },
-					{ name: 'Network Idle 0', value: 'networkidle0', description: 'No network connections for 500ms' },
-					{ name: 'Network Idle 2', value: 'networkidle2', description: 'No more than 2 network connections for 500ms' },
-				],
-				default: 'load',
-				description: 'When to consider navigation successful.',
-			},
-		],
-	},
-};
-
-const addScriptTagProperty: INodeProperties = {
-	displayName: 'Add Script Tag',
-	name: 'addScriptTag',
-	type: 'fixedCollection',
-	default: [],
-	description: 'Inject custom JavaScript into the page.',
-	placeholder: 'Add Script',
-	typeOptions: {
-		multipleValues: true,
-		sortable: true,
-		properties: [
-			{
-				displayName: 'Source',
-				name: 'source',
-				type: 'options',
-				options: [
-					{ name: 'Content', value: 'content' },
-					{ name: 'URL', value: 'url' },
-					{ name: 'Path', value: 'path' }, // Path might not be directly supported, use URL?
-				],
-				default: 'content',
-				noDataExpression: true,
-			},
-			{
-				displayName: 'Content',
-				name: 'content',
-				type: 'string',
-				typeOptions: { rows: 3, editor: 'javascriptEditor' },
-				default: '',
-				displayOptions: { show: { '/source': ['content'] } },
-				description: 'Inline JavaScript code.',
-			},
-			{
-				displayName: 'URL',
-				name: 'url',
-				type: 'string',
-				default: '',
-				displayOptions: { show: { '/source': ['url'] } },
-				description: 'URL of the script to inject.',
-			},
-			// 'path' omitted as API likely expects URL or content
-		],
-	},
-};
-
-const addStyleTagProperty: INodeProperties = {
-	displayName: 'Add Style Tag',
-	name: 'addStyleTag',
-	type: 'fixedCollection',
-	default: [],
-	description: 'Inject custom CSS styles into the page.',
-	placeholder: 'Add Style',
-	typeOptions: {
-		multipleValues: true,
-		sortable: true,
-		properties: [
-			{
-				displayName: 'Source',
-				name: 'source',
-				type: 'options',
-				options: [
-					{ name: 'Content', value: 'content' },
-					{ name: 'URL', value: 'url' },
-					{ name: 'Path', value: 'path' }, // Path might not be directly supported, use URL?
-				],
-				default: 'content',
-				noDataExpression: true,
-			},
-			{
-				displayName: 'Content',
-				name: 'content',
-				type: 'string',
-				typeOptions: { rows: 3, editor: 'cssEditor' },
-				default: '',
-				displayOptions: { show: { '/source': ['content'] } },
-				description: 'Inline CSS styles.',
-			},
-			{
-				displayName: 'URL',
-				name: 'url',
-				type: 'string',
-				default: '',
-				displayOptions: { show: { '/source': ['url'] } },
-				description: 'URL of the stylesheet to inject.',
-			},
-			// 'path' omitted as API likely expects URL or content
-		],
-	},
-};
-
-// --- Reinstate and Correct Header Property ---
-// Use type: 'json' to allow user to input the object directly
-const setExtraHTTPHeadersProperty: INodeProperties = {
-	displayName: 'Set Extra HTTP Headers',
-	name: 'setExtraHTTPHeaders',
-	type: 'json', // <-- Changed to json
-	default: '{}', // Default to an empty JSON object string
-	description: 'Set extra HTTP headers as a JSON object (e.g., { "X-Custom": "Value" }).',
-	placeholder: '{\n  "X-Custom-Header": "Value",\n  "Authorization": "Bearer ..."\n}',
-	typeOptions: {
-		rows: 3, // Provide a few rows for the JSON editor
-	},
-};
-// --- End Header Property Definition ---
-
-const screenshotOptionsFields: INodeProperties[] = [
-	{
-		displayName: 'Format',
-		name: 'type',
-		type: 'options',
-		options: [
-			{ name: 'PNG', value: 'png' },
-			{ name: 'JPEG', value: 'jpeg' },
-			{ name: 'WebP', value: 'webp' },
-		],
-		default: 'png',
-		description: 'The image format for the screenshot',
-	},
-	{
-		displayName: 'Full Page',
-		name: 'fullPage',
-		type: 'boolean',
-		default: false,
-		description: 'Whether to capture the full scrollable page. Defaults to false (viewport only).',
-	},
-	{
-		displayName: 'Omit Background',
-		name: 'omitBackground',
-		type: 'boolean',
-		default: false,
-		description:
-			'Whether to hide the default white background and allow capturing screenshots with transparency. Defaults to false.',
-	},
-	{
-		displayName: 'Quality (JPEG/WebP Only)',
-		name: 'quality',
-		type: 'number',
-		typeOptions: {
-			minValue: 0,
-			maxValue: 100,
-		},
-		default: 80,
-		description: 'The quality of the image, between 0-100. Not applicable to PNG.',
-		displayOptions: {
-			show: {
-				type: ['jpeg', 'webp'],
-			},
-		},
-	},
-	// Add other screenshot options like clip if needed
-];
+// --- Reusable Property Definitions --- (Removed - Will define inline) ---
+/*
+const sharedUrlProperty: INodeProperties = { ... };
+const sharedHtmlProperty: INodeProperties = { ... };
+const sharedSourceProperty: INodeProperties = { ... };
+const rejectResourceTypesProperty: INodeProperties = { ... };
+const rejectRequestPatternProperty: INodeProperties = { ... };
+const gotoOptionsProperty: INodeProperties = { ... };
+const addScriptTagProperty: INodeProperties = { ... };
+const addStyleTagProperty: INodeProperties = { ... };
+const setExtraHTTPHeadersProperty: INodeProperties = { ... };
+const screenshotOptionsFields: INodeProperties[] = [ ... ];
+*/
 
 // --- Main Node Definition ---
 
@@ -341,12 +71,12 @@ export class CloudflareBrowserRendering implements INodeType {
 								body: {
 									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
 									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									rejectResourceTypes: '={{ $parameter.rejectResourceTypes }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern }}',
-									viewport: '={{ $parameter.viewport }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
-									addScriptTag: '={{ $parameter.addScriptTag }}',
-									addStyleTag: '={{ $parameter.addStyleTag }}',
+									rejectResourceTypes: '={{ $parameter.rejectResourceTypes && $parameter.rejectResourceTypes.length > 0 ? $parameter.rejectResourceTypes : undefined }}',
+									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
+									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
+									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
+									addStyleTag: '={{ $parameter.addStyleTag && $parameter.addStyleTag.length > 0 ? $parameter.addStyleTag.map(item => item.styleItem) : undefined }}',
 								},
 							},
 						},
@@ -361,7 +91,7 @@ export class CloudflareBrowserRendering implements INodeType {
 								body: {
 									url: '={{ $parameter.url }}',
 									visibleLinksOnly: '={{ $parameter.visibleLinksOnly }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
 								},
 							},
 						},
@@ -376,8 +106,8 @@ export class CloudflareBrowserRendering implements INodeType {
 								body: {
 									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
 									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
+									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
 								},
 							},
 						},
@@ -393,14 +123,13 @@ export class CloudflareBrowserRendering implements INodeType {
 								body: {
 									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
 									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									addStyleTag: '={{ $parameter.addStyleTag }}',
-									addScriptTag: '={{ $parameter.addScriptTag }}',
-									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}', // Parse the JSON string
-									viewport: '={{ $parameter.viewport }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
-									rejectResourceTypes: '={{ $parameter.rejectResourceTypes }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern }}',
-									// pdfOptions: {}, // Add later if needed
+									addStyleTag: '={{ $parameter.addStyleTag && $parameter.addStyleTag.length > 0 ? $parameter.addStyleTag.map(item => item.styleItem) : undefined }}',
+									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
+									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders && Object.keys(JSON.parse($parameter.setExtraHTTPHeaders)).length > 0 ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}',
+									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
+									rejectResourceTypes: '={{ $parameter.rejectResourceTypes && $parameter.rejectResourceTypes.length > 0 ? $parameter.rejectResourceTypes : undefined }}',
+									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
 								},
 							},
 						},
@@ -412,15 +141,15 @@ export class CloudflareBrowserRendering implements INodeType {
 						routing: {
 							request: {
 								url: '/screenshot',
-								encoding: 'blob', // Expect binary image data
+								encoding: 'arraybuffer',
 								body: {
 									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
 									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									screenshotOptions: '={{ $parameter.screenshotOptions }}',
-									viewport: '={{ $parameter.viewport }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
-									addScriptTag: '={{ $parameter.addScriptTag }}',
-									addStyleTag: '={{ $parameter.addStyleTag }}',
+									screenshotOptions: '={{ $parameter.screenshotOptions && $parameter.screenshotOptions.length > 0 && $parameter.screenshotOptions[0].screenshotItem ? $parameter.screenshotOptions[0].screenshotItem : undefined }}',
+									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
+									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
+									addStyleTag: '={{ $parameter.addStyleTag && $parameter.addStyleTag.length > 0 ? $parameter.addStyleTag.map(item => item.styleItem) : undefined }}',
 								},
 							},
 						},
@@ -436,11 +165,10 @@ export class CloudflareBrowserRendering implements INodeType {
 								body: {
 									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
 									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									addScriptTag: '={{ $parameter.addScriptTag }}',
-									// setJavaScriptEnabled: '={{ $parameter.setJavaScriptEnabled }}', // Add later
-									screenshotOptions: '={{ $parameter.screenshotOptions }}',
-									viewport: '={{ $parameter.viewport }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
+									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
+									screenshotOptions: '={{ $parameter.screenshotOptions && $parameter.screenshotOptions.length > 0 && $parameter.screenshotOptions[0].screenshotItem ? $parameter.screenshotOptions[0].screenshotItem : undefined }}',
+									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
 								},
 							},
 						},
@@ -454,8 +182,8 @@ export class CloudflareBrowserRendering implements INodeType {
 								url: '/scrape',
 								body: {
 									url: '={{ $parameter.url }}',
-									elements: '={{ $parameter.elements }}',
-									gotoOptions: '={{ $parameter.gotoOptions }}',
+									elements: '={{ $parameter.elements && $parameter.elements.length > 0 ? $parameter.elements.map(item => item.elementItem) : undefined }}',
+									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
 								},
 							},
 						},
@@ -479,15 +207,51 @@ export class CloudflareBrowserRendering implements INodeType {
 				default: 'content',
 			},
 
-			// --- Input Source (URL / HTML) ---
-			{ ...sharedSourceProperty, displayOptions: { show: { operation: ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'] } } },
-			{ ...sharedUrlProperty, displayOptions: { show: { // Show if URL needed OR Source=URL
-				operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'json', 'markdown']
-			}}},
-			{ ...sharedHtmlProperty, displayOptions: { show: { // Show only if Source=HTML
-				'/operation': ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'],
-				'/source': ['html']
-			}}},
+			// --- Define Source Inline ---
+			{
+				displayName: 'Source',
+				name: 'source',
+				type: 'options',
+				options: [
+					{ name: 'URL', value: 'url' },
+					{ name: 'HTML', value: 'html' },
+				],
+				default: 'url',
+				description: 'Specify whether to render a URL or provided HTML content',
+				displayOptions: { show: { operation: ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'] } },
+			},
+			// --- Define URL Inline ---
+			{
+				displayName: 'URL',
+				name: 'url',
+				type: 'string',
+				default: '',
+				required: true,
+				placeholder: 'https://example.com',
+				description: 'The full URL (including http:// or https://) of the page to process',
+				hint: 'Enter the complete URL, e.g., https://n8n.io',
+				displayOptions: { show: { // Show if URL needed OR Source=URL
+					operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'json', 'markdown']
+				}},
+			},
+			// --- Define HTML Inline ---
+			{
+				displayName: 'HTML Content',
+				name: 'htmlInput', // Renamed to avoid conflict
+				type: 'string',
+				default: '',
+				required: true,
+				typeOptions: {
+					editor: 'htmlEditor',
+					rows: 10,
+				},
+				placeholder: '<html><body>Hello World!</body></html>',
+				description: 'The HTML content to render, including CSS in <style> tags if needed',
+				displayOptions: { show: { // Show only if Source=HTML
+					'/operation': ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'],
+					'/source': ['html']
+				}},
+			},
 
 			// --- Operation Specific Options ---
 
@@ -510,7 +274,61 @@ export class CloudflareBrowserRendering implements INodeType {
 				placeholder: 'Add Screenshot Option',
 				displayOptions: { show: { operation: ['screenshot', 'snapshot'] } },
 				default: {},
-				typeOptions: { multipleValues: false, properties: screenshotOptionsFields },
+				typeOptions: {
+					multipleValues: false,
+					properties: [
+						// Define screenshotOptionsFields directly here
+						{
+							name: 'screenshotItem',
+							displayName: 'Options',
+							values: [
+								{
+									displayName: 'Format',
+									name: 'type',
+									type: 'options',
+									options: [
+										{ name: 'PNG', value: 'png' },
+										{ name: 'JPEG', value: 'jpeg' },
+										{ name: 'WebP', value: 'webp' },
+									],
+									default: 'png',
+									description: 'The image format for the screenshot',
+								},
+								{
+									displayName: 'Full Page',
+									name: 'fullPage',
+									type: 'boolean',
+									default: false,
+									description: 'Whether to capture the full scrollable page. Defaults to false (viewport only).',
+								},
+								{
+									displayName: 'Omit Background',
+									name: 'omitBackground',
+									type: 'boolean',
+									default: false,
+									description:
+										'Whether to hide the default white background and allow capturing screenshots with transparency. Defaults to false.',
+								},
+								{
+									displayName: 'Quality (JPEG/WebP Only)',
+									name: 'quality',
+									type: 'number',
+									typeOptions: {
+										minValue: 0,
+										maxValue: 100,
+									},
+									default: 80,
+									description: 'The quality of the image, between 0-100. Not applicable to PNG.',
+									displayOptions: {
+										show: {
+											type: ['jpeg', 'webp'],
+										},
+									},
+								},
+							],
+						},
+					],
+				},
 			},
 
 			// Scrape
@@ -525,18 +343,24 @@ export class CloudflareBrowserRendering implements INodeType {
 				typeOptions: {
 					multipleValues: true,
 					sortable: true,
-					properties: [
-						{
-							displayName: 'CSS Selector',
-							name: 'selector',
-							type: 'string',
-							default: '',
-							required: true,
-							placeholder: 'e.g., h1, div.product-title, a[href]',
-							description: 'The CSS selector to match elements.',
-						},
-					],
 				},
+				options: [
+					{
+						name: 'elementItem',
+						displayName: 'Selector Item',
+						values: [
+							{
+								displayName: 'CSS Selector',
+								name: 'selector',
+								type: 'string',
+								default: '',
+								required: true,
+								placeholder: 'e.g., h1, div.product-title, a[href]',
+								description: 'The CSS selector to match elements.',
+							},
+						],
+					},
+				],
 			},
 
 			// JSON (AI)
@@ -567,15 +391,230 @@ export class CloudflareBrowserRendering implements INodeType {
 				displayOptions: { show: { operation: ['json'] } },
 			},
 
-			// --- Advanced Options (Common) ---
-			{ ...viewportProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
-			{ ...gotoOptionsProperty, displayOptions: { show: { operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'markdown'] } } }, // Applicable to most URL-based ops
-			{ ...rejectResourceTypesProperty, displayOptions: { show: { operation: ['content', 'pdf'] } } },
-			{ ...rejectRequestPatternProperty, displayOptions: { show: { operation: ['content', 'pdf', 'markdown'] } } },
-			{ ...addStyleTagProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
-			{ ...addScriptTagProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
-			{ ...setExtraHTTPHeadersProperty, displayOptions: { show: { operation: ['pdf'] } } },
-
+			// --- Advanced Options (Common) - Define Inline ---
+			// --- Viewport (Already Inline, now apply options/values) ---
+			{
+				displayName: 'Viewport',
+				name: 'viewport',
+				type: 'fixedCollection',
+				default: {},
+				description: 'Set the browser viewport size.',
+				placeholder: 'Add Viewport Size',
+				typeOptions: {
+					multipleValues: false,
+				},
+				options: [
+					{
+						name: 'viewportItem',
+						displayName: 'Size',
+						values: [
+							{
+								displayName: 'Width',
+								name: 'width',
+								type: 'number',
+								typeOptions: { numberStepSize: 10, minValue: 1 },
+								default: 1280,
+								description: 'Viewport width in pixels.',
+							},
+							{
+								displayName: 'Height',
+								name: 'height',
+								type: 'number',
+								typeOptions: { numberStepSize: 10, minValue: 1 },
+								default: 720,
+								description: 'Viewport height in pixels.',
+							},
+							{
+								displayName: 'Device Scale Factor',
+								name: 'deviceScaleFactor',
+								type: 'number',
+								typeOptions: { numberStepSize: 0.1, minValue: 1 },
+								default: 1,
+								description: 'Specify device scale factor (e.g., 2 for Retina displays).',
+							},
+						],
+					},
+				],
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
+			// --- gotoOptions (Inline, now apply options/values) ---
+			{
+				displayName: 'Navigation Options (Simplified)',
+				name: 'gotoOptions',
+				type: 'fixedCollection',
+				default: {},
+				description: 'Control page navigation behavior (subset of Puppeteer options).',
+				placeholder: 'Add Navigation Option',
+				typeOptions: {
+					multipleValues: false,
+				},
+				options: [
+					{
+						name: 'navigationItem',
+						displayName: 'Navigation',
+						values: [
+							{
+								displayName: 'Wait Until',
+								name: 'waitUntil',
+								type: 'options',
+								options: [
+									{ name: 'load', value: 'load', description: 'Wait for the load event' },
+									{ name: 'DOMContentLoaded', value: 'domcontentloaded', description: 'Wait for DOMContentLoaded event' },
+									{ name: 'Network Idle 0', value: 'networkidle0', description: 'No network connections for 500ms' },
+									{ name: 'Network Idle 2', value: 'networkidle2', description: 'No more than 2 network connections for 500ms' },
+								],
+								default: 'load',
+								description: 'When to consider navigation successful.',
+							},
+						],
+					},
+				],
+				displayOptions: { show: { operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'markdown'] } },
+			},
+			// --- rejectResourceTypes (Inline) ---
+			{
+				displayName: 'Reject Resource Types',
+				name: 'rejectResourceTypes',
+				type: 'multiOptions',
+				options: [
+					{ name: 'Image', value: 'image' },
+					{ name: 'Stylesheet', value: 'stylesheet' },
+					{ name: 'Script', value: 'script' },
+					{ name: 'Font', value: 'font' },
+					{ name: 'Media', value: 'media' },
+					{ name: 'WebSocket', value: 'websocket' },
+					{ name: 'Other', value: 'other' },
+				],
+				default: [],
+				description: 'Specify resource types to block during rendering (e.g., images, scripts).',
+				displayOptions: { show: { operation: ['content', 'pdf'] } },
+			},
+			// --- rejectRequestPattern (Inline) ---
+			{
+				displayName: 'Reject Request Pattern',
+				name: 'rejectRequestPattern',
+				type: 'string',
+				typeOptions: { multipleValues: true, multipleValueButtonText: 'Add Pattern' },
+				default: [],
+				placeholder: '/^.*\\.(css|js)$/',
+				description: 'Block requests matching these regex patterns (one pattern per entry).',
+				displayOptions: { show: { operation: ['content', 'pdf', 'markdown'] } },
+			},
+			// --- addStyleTag (Inline) ---
+			{
+				displayName: 'Add Style Tag',
+				name: 'addStyleTag',
+				type: 'fixedCollection',
+				default: [],
+				description: 'Inject custom CSS styles into the page.',
+				placeholder: 'Add Style',
+				typeOptions: {
+					multipleValues: true,
+					sortable: true,
+				},
+				options: [
+					{
+						name: 'styleItem',
+						displayName: 'Style Item',
+						values: [
+							{
+								displayName: 'Source',
+								name: 'source',
+								type: 'options',
+								options: [
+									{ name: 'Content', value: 'content' },
+									{ name: 'URL', value: 'url' },
+									{ name: 'Path', value: 'path' },
+								],
+								default: 'content',
+								noDataExpression: true,
+							},
+							{
+								displayName: 'Content',
+								name: 'content',
+								type: 'string',
+								typeOptions: { rows: 3 },
+								default: '',
+								displayOptions: { show: { '/source': ['content'] } },
+								description: 'Inline CSS styles.',
+							},
+							{
+								displayName: 'URL',
+								name: 'url',
+								type: 'string',
+								default: '',
+								displayOptions: { show: { '/source': ['url'] } },
+								description: 'URL of the stylesheet to inject.',
+							},
+						],
+					},
+				],
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
+			// --- addScriptTag (Inline, now apply options/values) ---
+			{
+				displayName: 'Add Script Tag',
+				name: 'addScriptTag',
+				type: 'fixedCollection',
+				default: [],
+				description: 'Inject custom JavaScript into the page.',
+				placeholder: 'Add Script',
+				typeOptions: {
+					multipleValues: true,
+					sortable: true,
+				},
+				options: [
+					{
+						name: 'scriptItem',
+						displayName: 'Script Item',
+						values: [
+							{
+								displayName: 'Source',
+								name: 'source',
+								type: 'options',
+								options: [
+									{ name: 'Content', value: 'content' },
+									{ name: 'URL', value: 'url' },
+									{ name: 'Path', value: 'path' }, // Path might not be directly supported, use URL?
+								],
+								default: 'content',
+								noDataExpression: true,
+							},
+							{
+								displayName: 'Content',
+								name: 'content',
+								type: 'string',
+								typeOptions: { rows: 3 },
+								default: '',
+								displayOptions: { show: { '/source': ['content'] } },
+								description: 'Inline JavaScript code.',
+							},
+							{
+								displayName: 'URL',
+								name: 'url',
+								type: 'string',
+								default: '',
+								displayOptions: { show: { '/source': ['url'] } },
+								description: 'URL of the script to inject.',
+							},
+						],
+					},
+				],
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
+			// --- setExtraHTTPHeaders (Inline) ---
+			{
+				displayName: 'Set Extra HTTP Headers',
+				name: 'setExtraHTTPHeaders',
+				type: 'json', // <-- Changed to json
+				default: '{}', // Default to an empty JSON object string
+				description: 'Set extra HTTP headers as a JSON object (e.g., { "X-Custom": "Value" }).',
+				placeholder: '{\n  "X-Custom-Header": "Value",\n  "Authorization": "Bearer ..."\n}',
+				typeOptions: {
+					rows: 3, // Provide a few rows for the JSON editor
+				},
+				displayOptions: { show: { operation: ['pdf'] } },
+			},
 		],
 	};
 }
