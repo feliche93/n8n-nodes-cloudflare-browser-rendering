@@ -172,6 +172,28 @@ export class CloudflareBrowserRendering implements INodeType {
 							},
 						},
 					},
+					{
+						name: 'Get Markdown',
+						value: 'markdown',
+						action: 'Convert a page to Markdown content',
+						routing: {
+							request: {
+								url: '/markdown',
+								body: {
+									mode: 'raw',
+									json: true,
+									value: JSON.stringify({
+										url: '={{ $parameter.url }}',
+									}),
+								},
+							},
+							// Define how to handle the response
+							// Assuming the API returns the Markdown directly as text/plain or similar
+							output: {
+								// Default behavior should return the response body
+							},
+						},
+					},
 				],
 				default: 'content',
 			},
@@ -200,30 +222,29 @@ export class CloudflareBrowserRendering implements INodeType {
 				default: '',
 				required: true,
 				placeholder: 'https://example.com',
-				description: 'The URL of the page to process',
-				// Show only when operation needs a URL (links) OR
-				// when operation is content/screenshot AND source is URL
+				description: 'The full URL (including http:// or https://) of the page to process',
+				hint: 'Enter the complete URL, e.g., https://n8n.io',
+				// Show if: (Operation is Links OR Markdown) OR (Operation is Content/Screenshot AND Source is URL)
+				// Reverting to simpler logic due to type errors with complex OR
 				displayOptions: {
 					show: {
-						'/operation': ['links'],
+						// Show if operation *might* require a URL
+						operation: ['content', 'screenshot', 'links', 'markdown'],
 					},
-					// Combining logic: Need to adjust based on how complex displayOptions can be.
-					// Simplest might be to always show URL and make it required conditionally
-					// Let's revert to simpler show logic for now and require=true
-					/* Complex logic removed
-					or: [
-						{
-							show: {
+					/* Complex OR logic removed due to type errors
+					show: {
+						_OR: [
+							{ '/operation': ['links', 'markdown'] }, // Show if operation is links or markdown
+							{
+								// Show if operation is content or screenshot AND source is URL
 								'/operation': ['content', 'screenshot'],
-								'/source': ['url']
-							}
-						}
-					]
+								'/source': ['url'],
+							},
+						],
+					},
 					*/
 				},
-				// We might need a custom execute function just to handle the conditional requirement logic
-				// Or set required dynamically based on other params if possible.
-				// For now, keeping required: true and relying on user input validation.
+				// Keep required: true. The node will fail if URL is needed but empty.
 			},
 			{
 				displayName: 'HTML Content',
@@ -232,12 +253,14 @@ export class CloudflareBrowserRendering implements INodeType {
 				default: '',
 				required: true,
 				typeOptions: {
-					rows: 5, // Make text area larger
+					editor: 'htmlEditor', // Use HTML editor for better experience
+					rows: 10, // Set initial height for HTML editor
 				},
 				placeholder: '<html><body>Hello World!</body></html>',
-				description: 'The HTML content to render',
+				description: 'The HTML content to render, including CSS in <style> tags if needed',
 				displayOptions: {
 					show: {
+						// Hide this option for Get Markdown, Get Content, Get Links
 						operation: ['content', 'screenshot'],
 						source: ['html'],
 					},
@@ -250,9 +273,10 @@ export class CloudflareBrowserRendering implements INodeType {
 				name: 'visibleLinksOnly',
 				type: 'boolean',
 				default: false,
-				description: 'Whether to return only links that are visible on the rendered page',
+				description: 'Whether to return only links currently visible in the viewport, excluding those hidden or off-screen',
 				displayOptions: {
 					show: {
+						// Hide this option for Get Markdown, Get Content, Take Screenshot
 						operation: ['links'],
 					},
 				},
@@ -273,6 +297,7 @@ export class CloudflareBrowserRendering implements INodeType {
 				description: 'Configure screenshot parameters like format, quality, etc',
 				displayOptions: {
 					show: {
+						// Hide this option for Get Markdown, Get Content, Get Links
 						operation: ['screenshot'],
 					},
 				},
