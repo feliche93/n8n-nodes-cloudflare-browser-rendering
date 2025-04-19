@@ -716,15 +716,19 @@ export class CloudflareBrowserRendering implements INodeType {
 
 			// Add common advanced parameters where applicable
 			if ([ 'content', 'pdf', 'screenshot', 'snapshot', 'links', 'scrape', 'markdown'].includes(operation)) {
-				const gotoOptionsParam = this.getNodeParameter('gotoOptions', i, []) as any[];
-				if (gotoOptionsParam.length > 0 && gotoOptionsParam[0].navigationItem) {
-					body.gotoOptions = gotoOptionsParam[0].navigationItem;
+				// Get the gotoOptions parameter. For fixedCollection with multipleValues=false, it returns the object directly.
+				const gotoOptionsParam = this.getNodeParameter('gotoOptions', i, {}) as IDataObject;
+				// Check if the parameter has the expected inner object and add it to the body
+				if (gotoOptionsParam && typeof gotoOptionsParam === 'object' && gotoOptionsParam.navigationItem) {
+					body.gotoOptions = gotoOptionsParam.navigationItem;
 				}
 			}
 			if ([ 'content', 'pdf', 'screenshot', 'snapshot'].includes(operation)) {
-				const viewportParam = this.getNodeParameter('viewport', i, []) as any[];
-				if (viewportParam.length > 0 && viewportParam[0].viewportItem) {
-					body.viewport = viewportParam[0].viewportItem;
+				// Get the viewport parameter. For fixedCollection with multipleValues=false, it returns the object directly.
+				const viewportParam = this.getNodeParameter('viewport', i, {}) as IDataObject;
+				// Check if the parameter has the expected inner object and add it to the body
+				if (viewportParam && typeof viewportParam === 'object' && viewportParam.viewportItem) {
+					body.viewport = viewportParam.viewportItem;
 				}
 			}
 			if ([ 'screenshot', 'pdf', 'snapshot'].includes(operation)) {
@@ -782,17 +786,28 @@ export class CloudflareBrowserRendering implements INodeType {
 				if (emulateMediaType) body.emulateMediaType = emulateMediaType;
 			}
 			if ([ 'screenshot', 'snapshot'].includes(operation)) {
-				const screenshotOptionsParam = this.getNodeParameter('screenshotOptions', i, []) as any[];
-				if (screenshotOptionsParam.length > 0 && screenshotOptionsParam[0].screenshotItem) {
-					const opts = { ...screenshotOptionsParam[0].screenshotItem };
-					const clipParam = opts.clip; // Handle nested clip
-					if (clipParam && clipParam.length > 0 && clipParam[0].clipItem) {
-						opts.clip = clipParam[0].clipItem;
+				// Get the screenshotOptions parameter. For fixedCollection with multipleValues=false, it returns the object directly.
+				const screenshotOptionsParam = this.getNodeParameter('screenshotOptions', i, {}) as IDataObject;
+
+				// Log the fetched parameter to see its structure
+				this.logger.debug('Fetched screenshotOptions Parameter:', { screenshotOptionsParam });
+
+				// Check if the parameter has the expected inner object and add it to the body
+				if (screenshotOptionsParam && typeof screenshotOptionsParam === 'object' && screenshotOptionsParam.screenshotItem) {
+					// Assert screenshotItem is an object before spreading
+					const item = screenshotOptionsParam.screenshotItem as IDataObject;
+					const opts = { ...item };
+
+					// Handle potential nested clip property (assuming clip is also a fixedCollection)
+					const clipParam = opts.clip as IDataObject | undefined;
+					if (clipParam && typeof clipParam === 'object' && clipParam.clipItem) {
+						opts.clip = clipParam.clipItem;
 					} else {
-						delete opts.clip; // Remove if empty
+						delete opts.clip; // Remove clip if not properly defined or empty
 					}
 					body.screenshotOptions = opts;
 				}
+
 				if (body.setJavaScriptEnabled) {
 					body.setJavaScriptEnabled = this.getNodeParameter('setJavaScriptEnabled', i) as boolean;
 				}
@@ -821,6 +836,9 @@ export class CloudflareBrowserRendering implements INodeType {
 			if (!encoding) {
 				options.headers = { ...options.headers, 'Content-Type': 'application/json' };
 			}
+
+			// Log the request body before sending
+			this.logger.debug('Sending Cloudflare API Request', { requestBody: body });
 
 			// Make the API call. Errors will propagate up.
 			// Cast helpers to 'any' to bypass the strict 'this' context type check.
