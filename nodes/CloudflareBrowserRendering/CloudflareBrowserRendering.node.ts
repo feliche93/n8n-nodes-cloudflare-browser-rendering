@@ -101,31 +101,31 @@ export class CloudflareBrowserRendering implements INodeType {
 			},
 			// --- Define URL Inline ---
 			{
-				displayName: 'URL',
-				name: 'url',
-				type: 'string',
-				default: '',
-				required: true,
-				placeholder: 'https://example.com',
-				description: 'The full URL (including http:// or https://) of the page to process',
-				hint: 'Enter the complete URL, e.g., https://n8n.io',
+	displayName: 'URL',
+	name: 'url',
+	type: 'string',
+	default: '',
+	required: true,
+	placeholder: 'https://example.com',
+	description: 'The full URL (including http:// or https://) of the page to process',
+	hint: 'Enter the complete URL, e.g., https://n8n.io',
 				displayOptions: { show: { // Show if URL needed OR Source=URL
 				operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'json', 'markdown']
 				}},
 			},
 			// --- Define HTML Inline ---
 			{
-				displayName: 'HTML Content',
-				name: 'htmlInput', // Renamed to avoid conflict
-				type: 'string',
-				default: '',
-				required: true,
-				typeOptions: {
-					editor: 'htmlEditor',
-					rows: 10,
-				},
-				placeholder: '<html><body>Hello World!</body></html>',
-				description: 'The HTML content to render, including CSS in <style> tags if needed',
+	displayName: 'HTML Content',
+	name: 'htmlInput', // Renamed to avoid conflict
+	type: 'string',
+	default: '',
+	required: true,
+	typeOptions: {
+		editor: 'htmlEditor',
+		rows: 10,
+	},
+	placeholder: '<html><body>Hello World!</body></html>',
+	description: 'The HTML content to render, including CSS in <style> tags if needed',
 				displayOptions: { show: { // Show only if Source=HTML
 				'/operation': ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'],
 				'/source': ['html']
@@ -148,61 +148,61 @@ export class CloudflareBrowserRendering implements INodeType {
 			{
 				displayName: 'Screenshot Options',
 				name: 'screenshotOptions',
-				type: 'fixedCollection',
+	type: 'fixedCollection',
 				description: 'Configure screenshot parameters like format, quality, etc.',
 				placeholder: 'Add Screenshot Option',
 				displayOptions: { show: { operation: ['screenshot', 'snapshot'] } },
-				default: {},
-				typeOptions: {
-					multipleValues: false,
+	default: {},
+	typeOptions: {
+		multipleValues: false,
 				},
 				options: [
 					{
 						name: 'screenshotItem',
 						displayName: 'Options',
 						values: [
-							{
-								displayName: 'Format',
-								name: 'type',
-								type: 'options',
-								options: [
-									{ name: 'PNG', value: 'png' },
-									{ name: 'JPEG', value: 'jpeg' },
-									{ name: 'WebP', value: 'webp' },
-								],
-								default: 'png',
-								description: 'The image format for the screenshot',
-							},
-							{
-								displayName: 'Full Page',
-								name: 'fullPage',
-								type: 'boolean',
-								default: false,
-								description: 'Whether to capture the full scrollable page. Defaults to false (viewport only).',
-							},
-							{
-								displayName: 'Omit Background',
-								name: 'omitBackground',
-								type: 'boolean',
-								default: false,
-								description:
-									'Whether to hide the default white background and allow capturing screenshots with transparency. Defaults to false.',
-							},
-							{
-								displayName: 'Quality (JPEG/WebP Only)',
-								name: 'quality',
-								type: 'number',
-								typeOptions: {
-									minValue: 0,
-									maxValue: 100,
-								},
-								default: 80,
-								description: 'The quality of the image, between 0-100. Not applicable to PNG.',
-								displayOptions: {
-									show: {
-										type: ['jpeg', 'webp'],
-									},
-								},
+	{
+		displayName: 'Format',
+		name: 'type',
+		type: 'options',
+		options: [
+			{ name: 'PNG', value: 'png' },
+			{ name: 'JPEG', value: 'jpeg' },
+			{ name: 'WebP', value: 'webp' },
+		],
+		default: 'png',
+		description: 'The image format for the screenshot',
+	},
+	{
+		displayName: 'Full Page',
+		name: 'fullPage',
+		type: 'boolean',
+		default: false,
+		description: 'Whether to capture the full scrollable page. Defaults to false (viewport only).',
+	},
+	{
+		displayName: 'Omit Background',
+		name: 'omitBackground',
+		type: 'boolean',
+		default: false,
+		description:
+			'Whether to hide the default white background and allow capturing screenshots with transparency. Defaults to false.',
+	},
+	{
+		displayName: 'Quality (JPEG/WebP Only)',
+		name: 'quality',
+		type: 'number',
+		typeOptions: {
+			minValue: 0,
+			maxValue: 100,
+		},
+		default: 80,
+		description: 'The quality of the image, between 0-100. Not applicable to PNG.',
+		displayOptions: {
+			show: {
+				type: ['jpeg', 'webp'],
+			},
+		},
 							},
 						],
 						description: 'An object defining the rectangular area of the page to clip the screenshot to.',
@@ -507,6 +507,25 @@ export class CloudflareBrowserRendering implements INodeType {
 					},
 				},
 			},
+			// --- waitForTimeout - TODO: Define this if needed
+			// --- scrollPage - Add definition
+			{
+				displayName: 'Scroll Page',
+				name: 'scrollPage',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to scroll the page to the bottom before capturing. Useful for lazy-loading content.',
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
+			// --- bestAttempt - TODO: Define this if needed
+			{
+				displayName: 'Set JavaScript Enabled',
+				name: 'setJavaScriptEnabled',
+				type: 'boolean',
+				default: true,
+				description: 'Whether to enable JavaScript in the rendered page.',
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
 		],
 	};
 
@@ -550,13 +569,13 @@ export class CloudflareBrowserRendering implements INodeType {
 					break;
 				case 'pdf':
 					endpoint = '/pdf';
-					encoding = 'blob';
+					encoding = 'arraybuffer';
 					needsUrl = this.getNodeParameter('source', i) === 'url';
 					needsHtml = this.getNodeParameter('source', i) === 'html';
 					break;
 				case 'screenshot':
 					endpoint = '/screenshot';
-					encoding = 'blob';
+					encoding = 'arraybuffer';
 					needsUrl = this.getNodeParameter('source', i) === 'url';
 					needsHtml = this.getNodeParameter('source', i) === 'html';
 					break;
@@ -631,8 +650,15 @@ export class CloudflareBrowserRendering implements INodeType {
 				}
 				const waitForTimeout = this.getNodeParameter('waitForTimeout', i, 0) as number;
 				if (waitForTimeout > 0) body.waitForTimeout = waitForTimeout;
-				body.scrollPage = this.getNodeParameter('scrollPage', i) as boolean;
-				body.bestAttempt = this.getNodeParameter('bestAttempt', i) as boolean;
+				if (body.scrollPage) {
+					body.scrollPage = this.getNodeParameter('scrollPage', i) as boolean;
+				}
+				if (body.bestAttempt) {
+					body.bestAttempt = this.getNodeParameter('bestAttempt', i) as boolean;
+				}
+				if (body.setJavaScriptEnabled) {
+					body.setJavaScriptEnabled = this.getNodeParameter('setJavaScriptEnabled', i) as boolean;
+				}
 			}
 			if ([ 'content', 'pdf', 'markdown'].includes(operation)) {
 				const rejectRequestPatternParam = this.getNodeParameter('rejectRequestPattern', i, []) as string[];
@@ -676,7 +702,9 @@ export class CloudflareBrowserRendering implements INodeType {
 					}
 					body.screenshotOptions = opts;
 				}
-				body.setJavaScriptEnabled = this.getNodeParameter('setJavaScriptEnabled', i) as boolean;
+				if (body.setJavaScriptEnabled) {
+					body.setJavaScriptEnabled = this.getNodeParameter('setJavaScriptEnabled', i) as boolean;
+				}
 			}
 			if (operation === 'screenshot') {
 				const selector = this.getNodeParameter('selector', i, '') as string;
@@ -693,10 +721,12 @@ export class CloudflareBrowserRendering implements INodeType {
 				headers,
 				method: 'POST',
 				body,
-				encoding,
-				returnFullResponse: false, // We only need the body
+				encoding, // Set to 'blob' for binary types
+				returnFullResponse: false,
+				// Conditionally set json: true ONLY if not expecting binary data
+				...(encoding ? {} : { json: true }),
 			};
-			// Explicitly set Content-Type for JSON requests
+			// Explicitly set Content-Type for non-binary JSON requests
 			if (!encoding) {
 				options.headers = { ...options.headers, 'Content-Type': 'application/json' };
 			}
@@ -708,26 +738,43 @@ export class CloudflareBrowserRendering implements INodeType {
 			// Process the successful response
 			let executionData: INodeExecutionData;
 			if (operation === 'pdf' || operation === 'screenshot') {
-				let mimeType = 'application/octet-stream';
-				let fileName = 'output';
+				// Wrap binary processing in try...catch for diagnostics
+				try {
+					let mimeType = 'application/octet-stream';
+					let fileName = 'output';
 
-				if (operation === 'pdf') {
-					mimeType = 'application/pdf';
-					fileName = 'output.pdf';
-				} else {
-					const screenshotOptionsParam = this.getNodeParameter('screenshotOptions', i, []) as any[];
-					const format = (screenshotOptionsParam.length > 0 && screenshotOptionsParam[0].screenshotItem && screenshotOptionsParam[0].screenshotItem.type)
-						? screenshotOptionsParam[0].screenshotItem.type
-						: 'png';
-					mimeType = `image/${format}`;
-					fileName = `screenshot.${format}`;
+					if (operation === 'pdf') {
+						mimeType = 'application/pdf';
+						fileName = 'output.pdf';
+					} else {
+						const screenshotOptionsParam = this.getNodeParameter('screenshotOptions', i, []) as any[];
+						const format = (screenshotOptionsParam.length > 0 && screenshotOptionsParam[0].screenshotItem && screenshotOptionsParam[0].screenshotItem.type)
+							? screenshotOptionsParam[0].screenshotItem.type
+							: 'png';
+						mimeType = `image/${format}`;
+						fileName = `screenshot.${format}`;
+					}
+
+					const binaryData = await this.helpers.prepareBinaryData(responseData as any, fileName, mimeType);
+					executionData = {
+						json: {},
+						binary: { [this.getNodeParameter('binaryPropertyName', i, 'data') as string]: binaryData },
+					};
+				} catch (binaryError) {
+					const responseDataType = typeof responseData;
+					const responseDataKeys = (responseData && typeof responseData === 'object') ? Object.keys(responseData) : 'N/A';
+					const errorMessage = `Error processing binary data: ${binaryError.message}. ResponseData type: ${responseDataType}, Keys: ${JSON.stringify(responseDataKeys)}`;
+
+					if (this.continueOnFail()) {
+						executionData = {
+							json: { error: errorMessage },
+							error: new NodeOperationError(this.getNode(), errorMessage, { itemIndex: i, description: 'Error occurred during prepareBinaryData call.' })
+						};
+					} else {
+						// Throw a new error with the diagnostic info
+						throw new NodeOperationError(this.getNode(), errorMessage, { itemIndex: i, description: 'Error occurred during prepareBinaryData call.' });
+					}
 				}
-
-				const binaryData = await this.helpers.prepareBinaryData(responseData as any, fileName, mimeType);
-				executionData = {
-					json: {},
-					binary: { [this.getNodeParameter('binaryPropertyName', i, 'data') as string]: binaryData },
-				};
 			} else {
 				// Handle JSON responses
 				if (typeof responseData === 'string') {
