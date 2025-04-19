@@ -534,6 +534,86 @@ export class CloudflareBrowserRendering implements INodeType {
 				description: 'Whether to enable JavaScript in the rendered page.',
 				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
 			},
+
+			// --- Add missing parameter definitions ---
+			{
+				displayName: 'Wait For Timeout (ms)',
+				name: 'waitForTimeout',
+				type: 'number',
+				typeOptions: { minValue: 0, maxValue: 60000 },
+				default: 0,
+				description: 'Waits for a specified timeout in milliseconds before continuing (0 to disable). Max 60000.',
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
+			{
+				displayName: 'Best Attempt',
+				name: 'bestAttempt',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to attempt to proceed when awaited events fail or timeout.',
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } },
+			},
+			{
+				displayName: 'Emulate Media Type',
+				name: 'emulateMediaType',
+				type: 'options',
+				options: [
+					{ name: 'Default (Unset)', value: '' },
+					{ name: 'Screen', value: 'screen' },
+					{ name: 'Print', value: 'print' },
+				],
+				default: '',
+				description: 'Changes the CSS media type of the page.',
+				displayOptions: { show: { operation: ['screenshot', 'pdf'] } },
+			},
+			{
+				displayName: 'Allow Resource Types',
+				name: 'allowResourceTypes',
+				type: 'multiOptions',
+				options: [
+					// Copied from Puppeteer resource types - need verification if CF supports all
+					{ name: 'Document', value: 'document' },
+					{ name: 'Stylesheet', value: 'stylesheet' },
+					{ name: 'Image', value: 'image' },
+					{ name: 'Media', value: 'media' },
+					{ name: 'Font', value: 'font' },
+					{ name: 'Script', value: 'script' },
+					{ name: 'TextTrack', value: 'texttrack' },
+					{ name: 'XHR', value: 'xhr' },
+					{ name: 'Fetch', value: 'fetch' },
+					{ name: 'Prefetch', value: 'prefetch' },
+					{ name: 'EventSource', value: 'eventsource' },
+					{ name: 'WebSocket', value: 'websocket' },
+					{ name: 'Manifest', value: 'manifest' },
+					{ name: 'SignedExchange', value: 'signedexchange' },
+					{ name: 'Ping', value: 'ping' },
+					{ name: 'CSP Violation Report', value: 'cspviolationreport' },
+					{ name: 'Preflight', value: 'preflight' },
+					{ name: 'Other', value: 'other' },
+				],
+				default: [],
+				description: 'Only allow requests for these resource types (overrides Reject Resource Types).',
+				displayOptions: { show: { operation: ['screenshot', 'pdf'] } },
+			},
+			{
+				displayName: 'Allow Request Pattern',
+				name: 'allowRequestPattern',
+				type: 'string',
+				typeOptions: { multipleValues: true, multipleValueButtonText: 'Add Pattern' },
+				default: [],
+				placeholder: '/^https:\/\/cdnjs\.cloudflare\.com\//',
+				description: 'Only allow requests matching these regex patterns (overrides Reject Request Pattern).',
+				displayOptions: { show: { operation: ['screenshot', 'pdf'] } },
+			},
+			{
+				displayName: 'User Agent',
+				name: 'userAgent',
+				type: 'string',
+				default: '', // Empty means use CF default
+				placeholder: 'Mozilla/5.0 (...',
+				description: 'Override the browser user agent string. Leave empty to use Cloudflare default.',
+				displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot', 'content', 'links', 'scrape', 'markdown'] } },
+			},
 		],
 	};
 
@@ -658,15 +738,18 @@ export class CloudflareBrowserRendering implements INodeType {
 				}
 				const waitForTimeout = this.getNodeParameter('waitForTimeout', i, 0) as number;
 				if (waitForTimeout > 0) body.waitForTimeout = waitForTimeout;
-				if (body.scrollPage) {
-					body.scrollPage = this.getNodeParameter('scrollPage', i) as boolean;
-				}
-				if (body.bestAttempt) {
-					body.bestAttempt = this.getNodeParameter('bestAttempt', i) as boolean;
-				}
-				if (body.setJavaScriptEnabled) {
-					body.setJavaScriptEnabled = this.getNodeParameter('setJavaScriptEnabled', i) as boolean;
-				}
+
+				// Fetch scrollPage parameter and assign to body
+				const scrollPageValue = this.getNodeParameter('scrollPage', i, false) as boolean; // Fetch value (with default)
+				body.scrollPage = scrollPageValue; // Assign fetched value to body
+
+				// Fetch bestAttempt parameter and assign to body
+				const bestAttemptValue = this.getNodeParameter('bestAttempt', i, false) as boolean; // Fetch value (with default)
+				body.bestAttempt = bestAttemptValue; // Assign fetched value to body
+
+				// Fetch setJavaScriptEnabled parameter and assign to body
+				const setJavaScriptEnabledValue = this.getNodeParameter('setJavaScriptEnabled', i, true) as boolean; // Fetch value (with default)
+				body.setJavaScriptEnabled = setJavaScriptEnabledValue; // Assign fetched value to body
 			}
 			if ([ 'content', 'pdf', 'markdown'].includes(operation)) {
 				const rejectRequestPatternParam = this.getNodeParameter('rejectRequestPattern', i, []) as string[];
