@@ -345,6 +345,14 @@ export class CloudflareBrowserRendering implements INodeType {
 								default: 'load',
 								description: 'When to consider navigation successful.',
 							},
+							{
+								displayName: 'Timeout (ms)',
+								name: 'timeout',
+								type: 'number',
+								typeOptions: { minValue: 0 },
+								default: 30000, // Default to 30 seconds
+								description: 'Maximum navigation time in milliseconds. Set to 0 to disable timeout. Defaults to 30 seconds.',
+							},
 						],
 					},
 				],
