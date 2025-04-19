@@ -1,46 +1,61 @@
-![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
+# n8n-nodes-cloudflare-browser-rendering
 
-# n8n-nodes-starter
+This is an n8n community node. It lets you use the [Cloudflare Browser Rendering API](https://developers.cloudflare.com/browser-rendering/) in your n8n workflows.
 
-This repo contains example nodes to help you get started building your own custom integrations for [n8n](n8n.io). It includes the node linter and other dependencies.
+Cloudflare Browser Rendering allows you to programmatically control a headless browser instance to render web pages, extract content, take screenshots, and more, directly from Cloudflare's edge network.
 
-To make your custom node available to the community, you must create it as an npm package, and [submit it to the npm registry](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry).
+[n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
-## Prerequisites
+[Installation](#installation)
+[Operations](#operations)
+[Credentials](#credentials)
+[Compatibility](#compatibility)
+[Resources](#resources)
 
-You need the following installed on your development machine:
+## Installation
 
-* [git](https://git-scm.com/downloads)
-* Node.js and pnpm. Minimum version Node 18. You can find instructions on how to install both using nvm (Node Version Manager) for Linux, Mac, and WSL [here](https://github.com/nvm-sh/nvm). For Windows users, refer to Microsoft's guide to [Install NodeJS on Windows](https://docs.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-windows).
-* Install n8n with:
-  ```
-  pnpm install n8n -g
-  ```
-* Recommended: follow n8n's guide to [set up your development environment](https://docs.n8n.io/integrations/creating-nodes/build/node-development-environment/).
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
 
-## Using this starter
+## Operations
 
-These are the basic steps for working with the starter. For detailed guidance on creating and publishing nodes, refer to the [documentation](https://docs.n8n.io/integrations/creating-nodes/).
+- **Get Content**: Fetches the fully rendered HTML content of a given URL or raw HTML string.
+- **Get Links**: Extracts all links (optionally only visible links) from a given URL.
+- **Take Screenshot**: Captures a screenshot (PNG, JPEG, or WebP) of a given URL or raw HTML string, with options for format, quality, and full page capture.
 
-1. [Generate a new repository](https://github.com/n8n-io/n8n-nodes-starter/generate) from this template repository.
-2. Clone your new repo:
-   ```
-   git clone https://github.com/<your organization>/<your-repo-name>.git
-   ```
-3. Run `pnpm i` to install dependencies.
-4. Open the project in your editor.
-5. Browse the examples in `/nodes` and `/credentials`. Modify the examples, or replace them with your own nodes.
-6. Update the `package.json` to match your details.
-7. Run `pnpm lint` to check for errors or `pnpm lintfix` to automatically fix errors when possible.
-8. Test your node locally. Refer to [Run your node locally](https://docs.n8n.io/integrations/creating-nodes/test/run-node-locally/) for guidance.
-9. Replace this README with documentation for your node. Use the [README_TEMPLATE](README_TEMPLATE.md) to get started.
-10. Update the LICENSE file to use your details.
-11. [Publish](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry) your package to npm.
+## Credentials
 
-## More information
+To use this node, you need to create Cloudflare API credentials:
 
-Refer to our [documentation on creating nodes](https://docs.n8n.io/integrations/creating-nodes/) for detailed information on building your own nodes.
+1.  **Account ID**: You need your Cloudflare Account ID.
+    - Log in to your [Cloudflare Dashboard](https://dash.cloudflare.com/).
+    - Select any of your domains.
+    - Your Account ID is shown in the URL (`https://dash.cloudflare.com/<ACCOUNT_ID>/...`) and on the right sidebar of the domain's **Overview** page.
+    <!-- Image: Finding Account ID -->
+2.  **API Token**: You need a Cloudflare API Token with permission to use Browser Rendering.
+    - Navigate to **My Profile** > **API Tokens** ([direct link](https://dash.cloudflare.com/profile/api-tokens)).
+    - Click **Create Token**.
+    - Under **Custom token**, click the **Get started** button.
+      <!-- Image: Click Custom Token Get Started -->
+    - Give your token a descriptive name (e.g., "n8n Browser Rendering").
+    - Under **Permissions**, select:
+      - **Account** (from the first dropdown)
+      - **Workers Browser Rendering** (from the second dropdown)
+      - **Read** (from the third dropdown)
+    - Ensure the token has the necessary permissions: `Account` > `Workers Browser Rendering` > `Read`.
+      <!-- Image: API Token Permissions Selection -->
+    - Under **Account Resources**, select the specific account(s) this token should apply to (usually `Include` > `Specific account` > `Your Account`).
+    - (Optional) Configure **Client IP Address Filtering** and **TTL** if needed.
+    - Continue to summary and click **Create Token**.
+    - **Important**: Copy the generated API token immediately. You won't be able to see it again.
+      <!-- Image: Copying API Token -->
+3.  **Add Credentials in n8n**: Use the gathered **Account ID** and **API Token** to create new `Cloudflare API` credentials in n8n.
 
-## License
+## Compatibility
 
-[MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+This node was developed and tested using n8n version 1.x.x (Please specify the versions you test against).
+
+## Resources
+
+- [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
+- [Cloudflare Browser Rendering Documentation](https://developers.cloudflare.com/browser-rendering/)
+- [Cloudflare API Token Documentation](https://developers.cloudflare.com/fundamentals/api/reference/api-tokens/)

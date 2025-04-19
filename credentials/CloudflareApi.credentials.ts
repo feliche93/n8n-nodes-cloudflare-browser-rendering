@@ -43,10 +43,10 @@ export class CloudflareApi implements ICredentialType {
 	// The block below tells how this credential can be tested
 	test: ICredentialTestRequest = {
 		request: {
-			// Test by trying to list zones, a common read permission.
-			// Adjust if your token has more specific permissions.
-			baseURL: `=https://api.cloudflare.com/client/v4/accounts/{{$credentials.accountId}}`,
-			url: '/browser-rendering/config', // Endpoint to get Browser Rendering config
+			// Use the token verify endpoint which doesn't require specific account permissions
+			// baseURL: `=https://api.cloudflare.com/client/v4/accounts/{{$credentials.accountId}}`, // Removed baseURL
+			url: 'https://api.cloudflare.com/client/v4/user/tokens/verify', // Use full URL
+			// method: 'GET', // GET is default for tests
 			headers: {
 				Authorization: '=Bearer {{$credentials.apiToken}}',
 			},
