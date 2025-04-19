@@ -30,24 +30,22 @@ To use this node, you need to create Cloudflare API credentials:
     - Log in to your [Cloudflare Dashboard](https://dash.cloudflare.com/).
     - Select any of your domains.
     - Your Account ID is shown in the URL (`https://dash.cloudflare.com/<ACCOUNT_ID>/...`) and on the right sidebar of the domain's **Overview** page.
-    <!-- Image: Finding Account ID -->
 2.  **API Token**: You need a Cloudflare API Token with permission to use Browser Rendering.
     - Navigate to **My Profile** > **API Tokens** ([direct link](https://dash.cloudflare.com/profile/api-tokens)).
     - Click **Create Token**.
     - Under **Custom token**, click the **Get started** button.
-      <!-- Image: Click Custom Token Get Started -->
     - Give your token a descriptive name (e.g., "n8n Browser Rendering").
     - Under **Permissions**, select:
       - **Account** (from the first dropdown)
       - **Workers Browser Rendering** (from the second dropdown)
       - **Read** (from the third dropdown)
+    - Click **+ Add more** and select the same permissions again, but choose **Edit** from the third dropdown.
     - Ensure the token has the necessary permissions: `Account` > `Workers Browser Rendering` > `Read`.
-      <!-- Image: API Token Permissions Selection -->
+    - Ensure the token also has the permission: `Account` > `Workers Browser Rendering` > `Edit`.
     - Under **Account Resources**, select the specific account(s) this token should apply to (usually `Include` > `Specific account` > `Your Account`).
     - (Optional) Configure **Client IP Address Filtering** and **TTL** if needed.
     - Continue to summary and click **Create Token**.
     - **Important**: Copy the generated API token immediately. You won't be able to see it again.
-      <!-- Image: Copying API Token -->
 3.  **Add Credentials in n8n**: Use the gathered **Account ID** and **API Token** to create new `Cloudflare API` credentials in n8n.
 
 ## Compatibility
