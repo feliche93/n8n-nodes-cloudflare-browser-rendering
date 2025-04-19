@@ -7,8 +7,227 @@ import type {
 // import { NodeConnectionType, NodeOperationError } from 'n8n-workflow'; // Removed unused NodeConnectionType
 // import { NodeOperationError } from 'n8n-workflow'; // Removed unused NodeOperationError
 
-// Define the structure for screenshot options based on Cloudflare docs (implicitly)
-// We'll use a fixed collection for simplicity
+// --- Reusable Property Definitions ---
+
+const sharedUrlProperty: INodeProperties = {
+	displayName: 'URL',
+	name: 'url',
+	type: 'string',
+	default: '',
+	required: true,
+	placeholder: 'https://example.com',
+	description: 'The full URL (including http:// or https://) of the page to process',
+	hint: 'Enter the complete URL, e.g., https://n8n.io',
+};
+
+const sharedHtmlProperty: INodeProperties = {
+	displayName: 'HTML Content',
+	name: 'htmlInput', // Renamed to avoid conflict
+	type: 'string',
+	default: '',
+	required: true,
+	typeOptions: {
+		editor: 'htmlEditor',
+		rows: 10,
+	},
+	placeholder: '<html><body>Hello World!</body></html>',
+	description: 'The HTML content to render, including CSS in <style> tags if needed',
+};
+
+const sharedSourceProperty: INodeProperties = {
+	displayName: 'Source',
+	name: 'source',
+	type: 'options',
+	options: [
+		{ name: 'URL', value: 'url' },
+		{ name: 'HTML', value: 'html' },
+	],
+	default: 'url',
+	description: 'Specify whether to render a URL or provided HTML content',
+};
+
+const rejectResourceTypesProperty: INodeProperties = {
+	displayName: 'Reject Resource Types',
+	name: 'rejectResourceTypes',
+	type: 'multiOptions',
+	options: [
+		{ name: 'Image', value: 'image' },
+		{ name: 'Stylesheet', value: 'stylesheet' },
+		{ name: 'Script', value: 'script' },
+		{ name: 'Font', value: 'font' },
+		{ name: 'Media', value: 'media' },
+		{ name: 'WebSocket', value: 'websocket' },
+		{ name: 'Other', value: 'other' },
+	],
+	default: [],
+	description: 'Specify resource types to block during rendering (e.g., images, scripts).',
+};
+
+const rejectRequestPatternProperty: INodeProperties = {
+	displayName: 'Reject Request Pattern',
+	name: 'rejectRequestPattern',
+	type: 'string',
+	typeOptions: { multipleValues: true, multipleValueButtonText: 'Add Pattern' },
+	default: [],
+	placeholder: '/^.*\\\\.(css|js)$/',
+	description: 'Block requests matching these regex patterns (one pattern per entry).',
+};
+
+const viewportProperty: INodeProperties = {
+	displayName: 'Viewport',
+	name: 'viewport',
+	type: 'fixedCollection',
+	default: {},
+	description: 'Set the browser viewport size.',
+	placeholder: 'Add Viewport Size',
+	typeOptions: {
+		multipleValues: false,
+		properties: [
+			{
+				displayName: 'Width',
+				name: 'width',
+				type: 'number',
+				typeOptions: { numberStepSize: 10, minValue: 1 },
+				default: 1280,
+				description: 'Viewport width in pixels.',
+			},
+			{
+				displayName: 'Height',
+				name: 'height',
+				type: 'number',
+				typeOptions: { numberStepSize: 10, minValue: 1 },
+				default: 720,
+				description: 'Viewport height in pixels.',
+			},
+			{
+				displayName: 'Device Scale Factor',
+				name: 'deviceScaleFactor',
+				type: 'number',
+				typeOptions: { numberStepSize: 0.1, minValue: 1 },
+				default: 1,
+				description: 'Specify device scale factor (e.g., 2 for Retina displays).',
+			},
+		],
+	},
+};
+
+const gotoOptionsProperty: INodeProperties = {
+	displayName: 'Navigation Options (Simplified)',
+	name: 'gotoOptions',
+	type: 'fixedCollection',
+	default: {},
+	description: 'Control page navigation behavior (subset of Puppeteer options).',
+	placeholder: 'Add Navigation Option',
+	typeOptions: {
+		multipleValues: false,
+		properties: [
+			{
+				displayName: 'Wait Until',
+				name: 'waitUntil',
+				type: 'options',
+				options: [
+					{ name: 'load', value: 'load', description: 'Wait for the load event' },
+					{ name: 'DOMContentLoaded', value: 'domcontentloaded', description: 'Wait for DOMContentLoaded event' },
+					{ name: 'Network Idle 0', value: 'networkidle0', description: 'No network connections for 500ms' },
+					{ name: 'Network Idle 2', value: 'networkidle2', description: 'No more than 2 network connections for 500ms' },
+				],
+				default: 'load',
+				description: 'When to consider navigation successful.',
+			},
+		],
+	},
+};
+
+const addScriptTagProperty: INodeProperties = {
+	displayName: 'Add Script Tag',
+	name: 'addScriptTag',
+	type: 'fixedCollection',
+	default: [{}],
+	description: 'Inject custom JavaScript into the page.',
+	placeholder: 'Add Script',
+	typeOptions: {
+		multipleValues: true,
+		sortable: true,
+		properties: [
+			{
+				displayName: 'Source',
+				name: 'source',
+				type: 'options',
+				options: [
+					{ name: 'Content', value: 'content' },
+					{ name: 'URL', value: 'url' },
+					{ name: 'Path', value: 'path' }, // Path might not be directly supported, use URL?
+				],
+				default: 'content',
+				noDataExpression: true,
+			},
+			{
+				displayName: 'Content',
+				name: 'content',
+				type: 'string',
+				typeOptions: { rows: 3, editor: 'javascriptEditor' },
+				default: '',
+				displayOptions: { show: { '/source': ['content'] } },
+				description: 'Inline JavaScript code.',
+			},
+			{
+				displayName: 'URL',
+				name: 'url',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { '/source': ['url'] } },
+				description: 'URL of the script to inject.',
+			},
+			// 'path' omitted as API likely expects URL or content
+		],
+	},
+};
+
+const addStyleTagProperty: INodeProperties = {
+	displayName: 'Add Style Tag',
+	name: 'addStyleTag',
+	type: 'fixedCollection',
+	default: [{}],
+	description: 'Inject custom CSS styles into the page.',
+	placeholder: 'Add Style',
+	typeOptions: {
+		multipleValues: true,
+		sortable: true,
+		properties: [
+			{
+				displayName: 'Source',
+				name: 'source',
+				type: 'options',
+				options: [
+					{ name: 'Content', value: 'content' },
+					{ name: 'URL', value: 'url' },
+					{ name: 'Path', value: 'path' }, // Path might not be directly supported, use URL?
+				],
+				default: 'content',
+				noDataExpression: true,
+			},
+			{
+				displayName: 'Content',
+				name: 'content',
+				type: 'string',
+				typeOptions: { rows: 3, editor: 'cssEditor' },
+				default: '',
+				displayOptions: { show: { '/source': ['content'] } },
+				description: 'Inline CSS styles.',
+			},
+			{
+				displayName: 'URL',
+				name: 'url',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { '/source': ['url'] } },
+				description: 'URL of the stylesheet to inject.',
+			},
+			// 'path' omitted as API likely expects URL or content
+		],
+	},
+};
+
 const screenshotOptionsFields: INodeProperties[] = [
 	{
 		displayName: 'Format',
@@ -53,14 +272,17 @@ const screenshotOptionsFields: INodeProperties[] = [
 			},
 		},
 	},
+	// Add other screenshot options like clip if needed
 ];
+
+// --- Main Node Definition ---
 
 export class CloudflareBrowserRendering implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Cloudflare Browser Rendering',
 		name: 'cloudflareBrowserRendering',
-		icon: 'file:cloudflareBrowserRendering.svg', // You might need to create this SVG icon
-		group: ['utility'], // Or ['transform'], ['external-apis'] etc.
+		icon: 'file:cloudflareBrowserRendering.svg',
+		group: ['utility'],
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'Uses Cloudflare Browser Rendering API to interact with web pages',
@@ -76,18 +298,14 @@ export class CloudflareBrowserRendering implements INodeType {
 			},
 		],
 
-		// Define default request settings for all operations
 		requestDefaults: {
 			baseURL:
 				'={{ `https://api.cloudflare.com/client/v4/accounts/${$credentials.accountId}/browser-rendering` }}',
 			headers: {
-				// Use simpler expression syntax for Authorization header, similar to credential test
 				Authorization: '=Bearer {{$credentials.apiToken}}',
 				'Content-Type': 'application/json',
 			},
-			method: 'POST', // All operations use POST
-			// Default error handling - relying on n8n's default behavior (throw on non-2xx)
-			// Removed custom errorHandling block as it's not standard in requestDefaults
+			method: 'POST',
 		},
 
 		properties: [
@@ -96,7 +314,7 @@ export class CloudflareBrowserRendering implements INodeType {
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
-				noDataExpression: true, // Prevents expression evaluation
+				noDataExpression: true,
 				options: [
 					{
 						name: 'Get Content',
@@ -105,29 +323,16 @@ export class CloudflareBrowserRendering implements INodeType {
 						routing: {
 							request: {
 								url: '/content',
-								// Send URL or HTML in the body
 								body: {
-									// 'send' moved into 'body'
-									mode: 'raw', // Use raw mode for JSON body
-									json: true,
-									// Define properties to send in the body
-									value: JSON.stringify({
-										url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-										html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-										// Add reject options if needed later
-									}),
+									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
+									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
+									rejectResourceTypes: '={{ $parameter.rejectResourceTypes }}',
+									rejectRequestPattern: '={{ $parameter.rejectRequestPattern }}',
+									viewport: '={{ $parameter.viewport }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
+									addScriptTag: '={{ $parameter.addScriptTag }}',
+									addStyleTag: '={{ $parameter.addStyleTag }}',
 								},
-							},
-							// Define how to handle the response
-							output: {
-								// Assume the main result is directly in the body
-								// Adjust if Cloudflare wraps it (e.g., in a 'result' field)
-								// Based on docs, it seems the HTML content is the direct response body for success
-								// Let's assume it returns JSON { success: true, result: '<html>...' } for consistency
-								// But let's test first returning the whole body
-								// property: '={{ $response.body }}', // Get the whole body
-								// Let's assume it returns the HTML directly as text/html if successful
-								// Or maybe JSON? Let's test the default first.
 							},
 						},
 					},
@@ -139,37 +344,10 @@ export class CloudflareBrowserRendering implements INodeType {
 							request: {
 								url: '/links',
 								body: {
-									// 'send' moved into 'body'
-									mode: 'raw',
-									json: true,
-									value: JSON.stringify({
-										url: '={{ $parameter.url }}',
-										visibleLinksOnly: '={{ $parameter.visibleLinksOnly }}',
-									}),
+									url: '={{ $parameter.url }}',
+									visibleLinksOnly: '={{ $parameter.visibleLinksOnly }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
 								},
-							},
-						},
-					},
-					{
-						name: 'Take Screenshot',
-						value: 'screenshot',
-						action: 'Capture a screenshot of a page or HTML',
-						routing: {
-							request: {
-								url: '/screenshot',
-								body: {
-									// 'send' moved into 'body'
-									mode: 'raw',
-									json: true,
-									value: JSON.stringify({
-										url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-										html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-										// Embed screenshot options directly if they exist
-										screenshotOptions: '={{ $parameter.screenshotOptions ?? {} }}',
-									}),
-								},
-								// Expect binary data (image blob) as response
-								encoding: 'blob',
 							},
 						},
 					},
@@ -181,17 +359,103 @@ export class CloudflareBrowserRendering implements INodeType {
 							request: {
 								url: '/markdown',
 								body: {
-									mode: 'raw',
-									json: true,
-									value: JSON.stringify({
-										url: '={{ $parameter.url }}',
-									}),
+									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
+									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
+									rejectRequestPattern: '={{ $parameter.rejectRequestPattern }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
 								},
 							},
-							// Define how to handle the response
-							// Assuming the API returns the Markdown directly as text/plain or similar
-							output: {
-								// Default behavior should return the response body
+						},
+					},
+					{
+						name: 'Get PDF',
+						value: 'pdf',
+						action: 'Generate a PDF document from a page or HTML',
+						routing: {
+							request: {
+								url: '/pdf',
+								encoding: 'blob', // Expect binary PDF data
+								body: {
+									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
+									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
+									addStyleTag: '={{ $parameter.addStyleTag }}',
+									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders }}', // Add property later
+									viewport: '={{ $parameter.viewport }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
+									rejectResourceTypes: '={{ $parameter.rejectResourceTypes }}',
+									rejectRequestPattern: '={{ $parameter.rejectRequestPattern }}',
+									// pdfOptions: {}, // Add later if needed
+								},
+							},
+						},
+					},
+					{
+						name: 'Take Screenshot',
+						value: 'screenshot',
+						action: 'Capture a screenshot of a page or HTML',
+						routing: {
+							request: {
+								url: '/screenshot',
+								encoding: 'blob', // Expect binary image data
+								body: {
+									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
+									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
+									screenshotOptions: '={{ $parameter.screenshotOptions }}',
+									viewport: '={{ $parameter.viewport }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
+									addScriptTag: '={{ $parameter.addScriptTag }}',
+									addStyleTag: '={{ $parameter.addStyleTag }}',
+								},
+							},
+						},
+					},
+					{
+						name: 'Get Snapshot',
+						value: 'snapshot',
+						action: 'Get HTML content and Base64 screenshot',
+						routing: {
+							request: {
+								url: '/snapshot',
+								// Response is JSON containing HTML string + Base64 image string
+								body: {
+									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
+									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
+									addScriptTag: '={{ $parameter.addScriptTag }}',
+									// setJavaScriptEnabled: '={{ $parameter.setJavaScriptEnabled }}', // Add later
+									screenshotOptions: '={{ $parameter.screenshotOptions }}',
+									viewport: '={{ $parameter.viewport }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
+								},
+							},
+						},
+					},
+					{
+						name: 'Scrape Elements',
+						value: 'scrape',
+						action: 'Extract structured data using CSS selectors',
+						routing: {
+							request: {
+								url: '/scrape',
+								body: {
+									url: '={{ $parameter.url }}',
+									elements: '={{ $parameter.elements }}',
+									gotoOptions: '={{ $parameter.gotoOptions }}',
+								},
+							},
+						},
+					},
+					{
+						name: 'Extract JSON (AI)',
+						value: 'json',
+						action: 'Extract structured JSON data using AI',
+						routing: {
+							request: {
+								url: '/json',
+								body: {
+									url: '={{ $parameter.url }}',
+									prompt: '={{ $parameter.prompt }}',
+									response_format: '={{ $parameter.responseFormatSchema ? JSON.parse($parameter.responseFormatSchema) : undefined }}', // Parse JSON string
+								},
 							},
 						},
 					},
@@ -199,151 +463,102 @@ export class CloudflareBrowserRendering implements INodeType {
 				default: 'content',
 			},
 
-			// Input Source (URL or HTML) - Common for Content and Screenshot
-			{
-				displayName: 'Source',
-				name: 'source',
-				type: 'options',
-				options: [
-					{ name: 'URL', value: 'url' },
-					{ name: 'HTML', value: 'html' },
-				],
-				default: 'url',
-				description: 'Specify whether to render a URL or provided HTML content',
-				displayOptions: {
-					show: {
-						operation: ['content', 'screenshot'],
-					},
-				},
-			},
-			{
-				displayName: 'URL',
-				name: 'url',
-				type: 'string',
-				default: '',
-				required: true,
-				placeholder: 'https://example.com',
-				description: 'The full URL (including http:// or https://) of the page to process',
-				hint: 'Enter the complete URL, e.g., https://n8n.io',
-				// Show if: (Operation is Links OR Markdown) OR (Operation is Content/Screenshot AND Source is URL)
-				// Reverting to simpler logic due to type errors with complex OR
-				displayOptions: {
-					show: {
-						// Show if operation *might* require a URL
-						operation: ['content', 'screenshot', 'links', 'markdown'],
-					},
-					/* Complex OR logic removed due to type errors
-					show: {
-						_OR: [
-							{ '/operation': ['links', 'markdown'] }, // Show if operation is links or markdown
-							{
-								// Show if operation is content or screenshot AND source is URL
-								'/operation': ['content', 'screenshot'],
-								'/source': ['url'],
-							},
-						],
-					},
-					*/
-				},
-				// Keep required: true. The node will fail if URL is needed but empty.
-			},
-			{
-				displayName: 'HTML Content',
-				name: 'htmlInput', // Renamed to avoid conflict with potential 'html' property in output
-				type: 'string',
-				default: '',
-				required: true,
-				typeOptions: {
-					editor: 'htmlEditor', // Use HTML editor for better experience
-					rows: 10, // Set initial height for HTML editor
-				},
-				placeholder: '<html><body>Hello World!</body></html>',
-				description: 'The HTML content to render, including CSS in <style> tags if needed',
-				displayOptions: {
-					show: {
-						// Hide this option for Get Markdown, Get Content, Get Links
-						operation: ['content', 'screenshot'],
-						source: ['html'],
-					},
-				},
-			},
+			// --- Input Source (URL / HTML) ---
+			{ ...sharedSourceProperty, displayOptions: { show: { operation: ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'] } } },
+			{ ...sharedUrlProperty, displayOptions: { show: { // Show if URL needed OR Source=URL
+				operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'json', 'markdown']
+			}}},
+			{ ...sharedHtmlProperty, displayOptions: { show: { // Show only if Source=HTML
+				'/operation': ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'],
+				'/source': ['html']
+			}}},
 
-			// --- Options for Get Links ---
+			// --- Operation Specific Options ---
+
+			// Links
 			{
 				displayName: 'Visible Links Only',
 				name: 'visibleLinksOnly',
 				type: 'boolean',
 				default: false,
 				description: 'Whether to return only links currently visible in the viewport, excluding those hidden or off-screen',
-				displayOptions: {
-					show: {
-						// Hide this option for Get Markdown, Get Content, Take Screenshot
-						operation: ['links'],
-					},
-				},
+				displayOptions: { show: { operation: ['links'] } },
 			},
 
-			// --- Options for Take Screenshot ---
+			// Screenshot / Snapshot
 			{
 				displayName: 'Screenshot Options',
 				name: 'screenshotOptions',
 				type: 'fixedCollection',
-				typeOptions: {
-					multipleValues: false, // Only one set of options
-					// Properties moved inside typeOptions
-					properties: screenshotOptionsFields, // Use the defined fields
-				},
-				default: {}, // Default to empty object -> API defaults
+				description: 'Configure screenshot parameters like format, quality, etc.',
 				placeholder: 'Add Screenshot Option',
-				description: 'Configure screenshot parameters like format, quality, etc',
-				displayOptions: {
-					show: {
-						// Hide this option for Get Markdown, Get Content, Get Links
-						operation: ['screenshot'],
-					},
-				},
-				// properties: screenshotOptionsFields, // Removed from here
+				displayOptions: { show: { operation: ['screenshot', 'snapshot'] } },
+				default: {},
+				typeOptions: { multipleValues: false, properties: screenshotOptionsFields },
 			},
 
-			// --- Options for Get Content (Example - Add later if needed) ---
-			/*
+			// Scrape
 			{
-				displayName: 'Reject Resource Types',
-				name: 'rejectResourceTypes',
-				type: 'multiOptions',
-				options: [
-					{ name: 'Image', value: 'image' },
-					{ name: 'Stylesheet', value: 'stylesheet' },
-					{ name: 'Script', value: 'script' },
-					{ name: 'Font', value: 'font' },
-					// Add other types if supported by API
-				],
-				default: [],
-				description: 'Specify resource types to block during rendering',
-				displayOptions: {
-					show: {
-						operation: ['content'],
-					},
-				},
-			},
-			{
-				displayName: 'Reject Request Pattern (Regex)',
-				name: 'rejectRequestPattern',
-				type: 'string', // Should actually be string[], but multi-line string might be easier UI
-				default: '',
+				displayName: 'Elements to Scrape',
+				name: 'elements',
+				type: 'fixedCollection',
+				default: [{selector:''}],
+				description: 'Define CSS selectors for elements to extract.',
+				placeholder: 'Add Selector',
+				displayOptions: { show: { operation: ['scrape'] } },
 				typeOptions: {
-					rows: 2,
+					multipleValues: true,
+					sortable: true,
+					properties: [
+						{
+							displayName: 'CSS Selector',
+							name: 'selector',
+							type: 'string',
+							default: '',
+							required: true,
+							placeholder: 'e.g., h1, div.product-title, a[href]',
+							description: 'The CSS selector to match elements.',
+						},
+					],
 				},
-				placeholder: '^.*\\.(css|png)',
-				description: 'A regex pattern (or multiple patterns, one per line) for URLs to block.',
-				displayOptions: {
-					show: {
-						operation: ['content'],
-					},
-				},
-				// Note: This would require processing in execute or a helper if API needs string[]
 			},
-			*/
+
+			// JSON (AI)
+			{
+				displayName: 'Notice: Workers AI Usage',
+				name: 'jsonNotice',
+				type: 'notice',
+				displayOptions: { show: { operation: ['json'] } },
+				default: 'Using this operation incurs costs on Cloudflare Workers AI. Monitor usage in your Cloudflare dashboard.',
+			},
+			{
+				displayName: 'Prompt',
+				name: 'prompt',
+				type: 'string',
+				typeOptions: { rows: 3 },
+				default: '',
+				description: 'Optional: Guide the AI on what data to extract (e.g., "Get me the list of AI products").',
+				displayOptions: { show: { operation: ['json'] } },
+			},
+			{
+				displayName: 'Response Format (JSON Schema)',
+				name: 'responseFormatSchema',
+				type: 'string',
+				typeOptions: { rows: 10, editor: 'jsEditor' },
+				default: '',
+				description: 'Optional: Define the expected JSON structure for the output using a JSON schema.',
+				placeholder: '{\n  "type": "object",\n  "properties": {\n    "products": {\n      "type": "array",\n      "items": { ... }\n    }\n  }\n}',
+				displayOptions: { show: { operation: ['json'] } },
+			},
+
+			// --- Advanced Options (Common) ---
+			{ ...viewportProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
+			{ ...gotoOptionsProperty, displayOptions: { show: { operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'markdown'] } } }, // Applicable to most URL-based ops
+			{ ...rejectResourceTypesProperty, displayOptions: { show: { operation: ['content', 'pdf'] } } },
+			{ ...rejectRequestPatternProperty, displayOptions: { show: { operation: ['content', 'pdf', 'markdown'] } } },
+			{ ...addStyleTagProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
+			{ ...addScriptTagProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
+
 		],
 	};
 
