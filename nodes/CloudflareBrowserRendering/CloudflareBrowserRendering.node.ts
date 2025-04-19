@@ -1,24 +1,15 @@
+// import { Buffer } from 'buffer'; // <-- Remove Buffer import
 import type {
+	IExecuteFunctions,
+	INodeExecutionData,
+	// INodeProperties, // <-- Remove unused import
 	INodeType,
 	INodeTypeDescription,
-	// JsonObject, // Removed unused import
+	IDataObject,
+	IHttpRequestOptions,
+	// IBinaryData, // <-- Remove unused import
 } from 'n8n-workflow';
-// import { NodeConnectionType, NodeOperationError } from 'n8n-workflow'; // Removed unused NodeConnectionType
-// import { NodeOperationError } from 'n8n-workflow'; // Removed unused NodeOperationError
-
-// --- Reusable Property Definitions --- (Removed - Will define inline) ---
-/*
-const sharedUrlProperty: INodeProperties = { ... };
-const sharedHtmlProperty: INodeProperties = { ... };
-const sharedSourceProperty: INodeProperties = { ... };
-const rejectResourceTypesProperty: INodeProperties = { ... };
-const rejectRequestPatternProperty: INodeProperties = { ... };
-const gotoOptionsProperty: INodeProperties = { ... };
-const addScriptTagProperty: INodeProperties = { ... };
-const addStyleTagProperty: INodeProperties = { ... };
-const setExtraHTTPHeadersProperty: INodeProperties = { ... };
-const screenshotOptionsFields: INodeProperties[] = [ ... ];
-*/
+import { NodeOperationError } from 'n8n-workflow'; // Value import
 
 // --- Main Node Definition ---
 
@@ -43,16 +34,6 @@ export class CloudflareBrowserRendering implements INodeType {
 			},
 		],
 
-		requestDefaults: {
-			baseURL:
-				'={{ `https://api.cloudflare.com/client/v4/accounts/${$credentials.accountId}/browser-rendering` }}',
-			headers: {
-				Authorization: '=Bearer {{$credentials.apiToken}}',
-				'Content-Type': 'application/json',
-			},
-			method: 'POST',
-		},
-
 		properties: [
 			// Operation Selector
 			{
@@ -65,170 +46,41 @@ export class CloudflareBrowserRendering implements INodeType {
 						name: 'Get Content',
 						value: 'content',
 						action: 'Get rendered HTML content',
-						routing: {
-							request: {
-								url: '/content',
-								body: {
-									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									rejectResourceTypes: '={{ $parameter.rejectResourceTypes && $parameter.rejectResourceTypes.length > 0 ? $parameter.rejectResourceTypes : undefined }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
-									allowResourceTypes: '={{ $parameter.allowResourceTypes && $parameter.allowResourceTypes.length > 0 ? $parameter.allowResourceTypes : undefined }}',
-									allowRequestPattern: '={{ $parameter.allowRequestPattern && $parameter.allowRequestPattern.length > 0 ? $parameter.allowRequestPattern : undefined }}',
-									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
-									addStyleTag: '={{ $parameter.addStyleTag && $parameter.addStyleTag.length > 0 ? $parameter.addStyleTag.map(item => item.styleItem) : undefined }}',
-									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders && Object.keys(JSON.parse($parameter.setExtraHTTPHeaders)).length > 0 ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Get Links',
 						value: 'links',
 						action: 'Extract links from a page',
-						routing: {
-							request: {
-								url: '/links',
-								body: {
-									url: '={{ $parameter.url }}',
-									visibleLinksOnly: '={{ $parameter.visibleLinksOnly }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Get Markdown',
 						value: 'markdown',
 						action: 'Convert a page to Markdown content',
-						routing: {
-							request: {
-								url: '/markdown',
-								body: {
-									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Get PDF',
 						value: 'pdf',
 						action: 'Generate a PDF document from a page or HTML',
-						routing: {
-							request: {
-								url: '/pdf',
-								encoding: 'blob', // Expect binary PDF data
-								body: {
-									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									addStyleTag: '={{ $parameter.addStyleTag && $parameter.addStyleTag.length > 0 ? $parameter.addStyleTag.map(item => item.styleItem) : undefined }}',
-									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
-									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders && Object.keys(JSON.parse($parameter.setExtraHTTPHeaders)).length > 0 ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}',
-									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-									rejectResourceTypes: '={{ $parameter.rejectResourceTypes && $parameter.rejectResourceTypes.length > 0 ? $parameter.rejectResourceTypes : undefined }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
-									allowResourceTypes: '={{ $parameter.allowResourceTypes && $parameter.allowResourceTypes.length > 0 ? $parameter.allowResourceTypes : undefined }}',
-									allowRequestPattern: '={{ $parameter.allowRequestPattern && $parameter.allowRequestPattern.length > 0 ? $parameter.allowRequestPattern : undefined }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Take Screenshot',
 						value: 'screenshot',
 						action: 'Capture a screenshot of a page or HTML',
-						routing: {
-							request: {
-								url: '/screenshot',
-								encoding: 'arraybuffer',
-								json: true,
-								body: {
-									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									screenshotOptions: '={{ $parameter.screenshotOptions && $parameter.screenshotOptions.length > 0 && $parameter.screenshotOptions[0].screenshotItem ? {...$parameter.screenshotOptions[0].screenshotItem, clip: $parameter.screenshotOptions[0].screenshotItem.clip && $parameter.screenshotOptions[0].screenshotItem.clip.length > 0 ? $parameter.screenshotOptions[0].screenshotItem.clip[0].clipItem : undefined} : undefined }}',
-									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
-									addStyleTag: '={{ $parameter.addStyleTag && $parameter.addStyleTag.length > 0 ? $parameter.addStyleTag.map(item => item.styleItem) : undefined }}',
-									rejectResourceTypes: '={{ $parameter.rejectResourceTypes && $parameter.rejectResourceTypes.length > 0 ? $parameter.rejectResourceTypes : undefined }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
-									allowResourceTypes: '={{ $parameter.allowResourceTypes && $parameter.allowResourceTypes.length > 0 ? $parameter.allowResourceTypes : undefined }}',
-									allowRequestPattern: '={{ $parameter.allowRequestPattern && $parameter.allowRequestPattern.length > 0 ? $parameter.allowRequestPattern : undefined }}',
-									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders && Object.keys(JSON.parse($parameter.setExtraHTTPHeaders)).length > 0 ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}',
-									setJavaScriptEnabled: '={{ $parameter.setJavaScriptEnabled }}',
-									userAgent: '={{ $parameter.userAgent || undefined }}',
-									waitForTimeout: '={{ $parameter.waitForTimeout || undefined }}',
-									emulateMediaType: '={{ $parameter.emulateMediaType || undefined }}',
-									scrollPage: '={{ $parameter.scrollPage }}',
-									bestAttempt: '={{ $parameter.bestAttempt }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Get Snapshot',
 						value: 'snapshot',
 						action: 'Get HTML content and Base64 screenshot',
-						routing: {
-							request: {
-								url: '/snapshot',
-								// Response is JSON containing HTML string + Base64 image string
-								body: {
-									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
-									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
-									addScriptTag: '={{ $parameter.addScriptTag && $parameter.addScriptTag.length > 0 ? $parameter.addScriptTag.map(item => item.scriptItem) : undefined }}',
-									screenshotOptions: '={{ $parameter.screenshotOptions && $parameter.screenshotOptions.length > 0 && $parameter.screenshotOptions[0].screenshotItem ? {...$parameter.screenshotOptions[0].screenshotItem, clip: $parameter.screenshotOptions[0].screenshotItem.clip && $parameter.screenshotOptions[0].screenshotItem.clip.length > 0 ? $parameter.screenshotOptions[0].screenshotItem.clip[0].clipItem : undefined} : undefined }}',
-									viewport: '={{ $parameter.viewport && $parameter.viewport.length > 0 && $parameter.viewport[0].viewportItem ? $parameter.viewport[0].viewportItem : undefined }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-									rejectResourceTypes: '={{ $parameter.rejectResourceTypes && $parameter.rejectResourceTypes.length > 0 ? $parameter.rejectResourceTypes : undefined }}',
-									rejectRequestPattern: '={{ $parameter.rejectRequestPattern && $parameter.rejectRequestPattern.length > 0 ? $parameter.rejectRequestPattern : undefined }}',
-									allowResourceTypes: '={{ $parameter.allowResourceTypes && $parameter.allowResourceTypes.length > 0 ? $parameter.allowResourceTypes : undefined }}',
-									allowRequestPattern: '={{ $parameter.allowRequestPattern && $parameter.allowRequestPattern.length > 0 ? $parameter.allowRequestPattern : undefined }}',
-									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders && Object.keys(JSON.parse($parameter.setExtraHTTPHeaders)).length > 0 ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}',
-									setJavaScriptEnabled: '={{ $parameter.setJavaScriptEnabled }}',
-									userAgent: '={{ $parameter.userAgent || undefined }}',
-									waitForTimeout: '={{ $parameter.waitForTimeout || undefined }}',
-									scrollPage: '={{ $parameter.scrollPage }}',
-									bestAttempt: '={{ $parameter.bestAttempt }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Scrape Elements',
 						value: 'scrape',
 						action: 'Extract structured data using CSS selectors',
-						routing: {
-							request: {
-								url: '/scrape',
-								body: {
-									url: '={{ $parameter.url }}',
-									elements: '={{ $parameter.elements && $parameter.elements.length > 0 ? $parameter.elements.map(item => item.elementItem) : undefined }}',
-									gotoOptions: '={{ $parameter.gotoOptions && $parameter.gotoOptions.length > 0 && $parameter.gotoOptions[0].navigationItem ? $parameter.gotoOptions[0].navigationItem : undefined }}',
-								},
-							},
-						},
 					},
 					{
 						name: 'Extract JSON (AI)',
 						value: 'json',
 						action: 'Extract structured JSON data using AI',
-						routing: {
-							request: {
-								url: '/json',
-								body: {
-									url: '={{ $parameter.url }}',
-									prompt: '={{ $parameter.prompt }}',
-									response_format: '={{ $parameter.responseFormatSchema ? JSON.parse($parameter.responseFormatSchema) : undefined }}', // Parse JSON string
-								},
-							},
-						},
 					},
 				],
 				default: 'content',
@@ -258,7 +110,7 @@ export class CloudflareBrowserRendering implements INodeType {
 				description: 'The full URL (including http:// or https://) of the page to process',
 				hint: 'Enter the complete URL, e.g., https://n8n.io',
 				displayOptions: { show: { // Show if URL needed OR Source=URL
-					operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'json', 'markdown']
+				operation: ['content', 'screenshot', 'pdf', 'snapshot', 'links', 'scrape', 'json', 'markdown']
 				}},
 			},
 			// --- Define HTML Inline ---
@@ -275,8 +127,8 @@ export class CloudflareBrowserRendering implements INodeType {
 				placeholder: '<html><body>Hello World!</body></html>',
 				description: 'The HTML content to render, including CSS in <style> tags if needed',
 				displayOptions: { show: { // Show only if Source=HTML
-					'/operation': ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'],
-					'/source': ['html']
+				'/operation': ['content', 'screenshot', 'pdf', 'snapshot', 'markdown'],
+				'/source': ['html']
 				}},
 			},
 
@@ -376,17 +228,17 @@ export class CloudflareBrowserRendering implements INodeType {
 						name: 'elementItem',
 						displayName: 'Selector Item',
 						values: [
-							{
-								displayName: 'CSS Selector',
-								name: 'selector',
-								type: 'string',
-								default: '',
-								required: true,
-								placeholder: 'e.g., h1, div.product-title, a[href]',
-								description: 'The CSS selector to match elements.',
-							},
-						],
-					},
+						{
+							displayName: 'CSS Selector',
+							name: 'selector',
+							type: 'string',
+							default: '',
+							required: true,
+							placeholder: 'e.g., h1, div.product-title, a[href]',
+							description: 'The CSS selector to match elements.',
+						},
+					],
+				},
 				],
 			},
 
@@ -642,22 +494,254 @@ export class CloudflareBrowserRendering implements INodeType {
 				},
 				displayOptions: { show: { operation: ['pdf'] } },
 			},
+			// --- Add Binary Property Name Field ---
+			{
+				displayName: 'Binary Property Name',
+				name: 'binaryPropertyName',
+				type: 'string',
+				default: 'data',
+				description: 'Name of the binary property to write the file data to.',
+				displayOptions: {
+					show: {
+						operation: ['pdf', 'screenshot'],
+					},
+				},
+			},
 		],
 	};
-}
 
-// Helper function if needed for complex transformations (not used in this basic version)
-// async function processScreenshotResponse(this: IExecuteFunctions, response: IDataObject): Promise<INodeExecutionData[]> {
-// 	const binaryData = this.helpers.getBinaryDataBuffer(0); // Assuming binary data is at index 0
-//  const options = this.getNodeParameter('screenshotOptions', 0, {}) as IDataObject;
-//  const format = options.type || 'png';
-//  const returnItem: INodeExecutionData = {
-// 		json: {}, // Add any JSON data if needed
-// 		binary: {
-// 			data: binaryData
-// 		},
-//    mimeType: `image/${format}`, // Set correct MIME type
-//    fileName: `screenshot.${format}` // Set filename
-// 	};
-// 	return [returnItem];
-// }
+	// --- Programmatic Execute Method ---
+	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		const items = this.getInputData();
+		const returnData: INodeExecutionData[] = [];
+
+		// Loop through each item received
+		for (let i = 0; i < items.length; i++) {
+			// Note: Removed the outer try...catch block inside the loop.
+			// Errors will now propagate up to the n8n core execution handler,
+			// which respects the 'continueOnFail' setting.
+
+			const operation = this.getNodeParameter('operation', i) as string;
+			const credentials = await this.getCredentials('cloudflareApi', i);
+			const baseURL = `https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/browser-rendering`;
+			const headers = { Authorization: `Bearer ${credentials.apiToken}` };
+
+			let endpoint = '';
+			const body: IDataObject = {};
+			let encoding: IHttpRequestOptions['encoding'] = undefined; // Default encoding
+			let needsUrl = false;
+			let needsHtml = false;
+
+			// Determine endpoint and basic input requirements
+			switch (operation) {
+				case 'content':
+					endpoint = '/content';
+					needsUrl = this.getNodeParameter('source', i) === 'url';
+					needsHtml = this.getNodeParameter('source', i) === 'html';
+					break;
+				case 'links':
+					endpoint = '/links';
+					needsUrl = true;
+					break;
+				case 'markdown':
+					endpoint = '/markdown';
+					needsUrl = this.getNodeParameter('source', i) === 'url';
+					needsHtml = this.getNodeParameter('source', i) === 'html';
+					break;
+				case 'pdf':
+					endpoint = '/pdf';
+					encoding = 'blob';
+					needsUrl = this.getNodeParameter('source', i) === 'url';
+					needsHtml = this.getNodeParameter('source', i) === 'html';
+					break;
+				case 'screenshot':
+					endpoint = '/screenshot';
+					encoding = 'blob';
+					needsUrl = this.getNodeParameter('source', i) === 'url';
+					needsHtml = this.getNodeParameter('source', i) === 'html';
+					break;
+				case 'snapshot':
+					endpoint = '/snapshot';
+					needsUrl = this.getNodeParameter('source', i) === 'url';
+					needsHtml = this.getNodeParameter('source', i) === 'html';
+					break;
+				case 'scrape':
+					endpoint = '/scrape';
+					needsUrl = true;
+					break;
+				case 'json':
+					endpoint = '/json';
+					needsUrl = true;
+					break;
+				default:
+					// If operation is invalid, throw an error. n8n core will catch it.
+					// We need this.getNode() here, but it should be safe outside the catch block.
+					throw new NodeOperationError(this.getNode(), `Unsupported operation: ${operation}`, { itemIndex: i });
+			}
+
+			// Populate basic source
+			if (needsUrl) {
+				body.url = this.getNodeParameter('url', i) as string;
+			}
+			if (needsHtml) {
+				body.html = this.getNodeParameter('htmlInput', i) as string;
+			}
+
+			// Add operation-specific parameters
+			if (operation === 'links') {
+				body.visibleLinksOnly = this.getNodeParameter('visibleLinksOnly', i) as boolean;
+			}
+			if (operation === 'scrape') {
+				const elementsParam = this.getNodeParameter('elements', i, []) as any[];
+				if (elementsParam.length > 0) {
+					body.elements = elementsParam.map(item => item.elementItem);
+				}
+			}
+			if (operation === 'json') {
+				const prompt = this.getNodeParameter('prompt', i, '') as string;
+				if (prompt) body.prompt = prompt;
+				const schema = this.getNodeParameter('responseFormatSchema', i, '') as string;
+				if (schema) {
+					// Parse JSON here. If it fails, the error will propagate.
+					body.response_format = JSON.parse(schema);
+				}
+			}
+
+			// Add common advanced parameters where applicable
+			if ([ 'content', 'pdf', 'screenshot', 'snapshot', 'links', 'scrape', 'markdown'].includes(operation)) {
+				const gotoOptionsParam = this.getNodeParameter('gotoOptions', i, []) as any[];
+				if (gotoOptionsParam.length > 0 && gotoOptionsParam[0].navigationItem) {
+					body.gotoOptions = gotoOptionsParam[0].navigationItem;
+				}
+			}
+			if ([ 'content', 'pdf', 'screenshot', 'snapshot'].includes(operation)) {
+				const viewportParam = this.getNodeParameter('viewport', i, []) as any[];
+				if (viewportParam.length > 0 && viewportParam[0].viewportItem) {
+					body.viewport = viewportParam[0].viewportItem;
+				}
+			}
+			if ([ 'screenshot', 'pdf', 'snapshot'].includes(operation)) {
+				const addStyleTagParam = this.getNodeParameter('addStyleTag', i, []) as any[];
+				if (addStyleTagParam.length > 0) {
+					body.addStyleTag = addStyleTagParam.map(item => item.styleItem);
+				}
+				const addScriptTagParam = this.getNodeParameter('addScriptTag', i, []) as any[];
+				if (addScriptTagParam.length > 0) {
+					body.addScriptTag = addScriptTagParam.map(item => item.scriptItem);
+				}
+				const waitForTimeout = this.getNodeParameter('waitForTimeout', i, 0) as number;
+				if (waitForTimeout > 0) body.waitForTimeout = waitForTimeout;
+				body.scrollPage = this.getNodeParameter('scrollPage', i) as boolean;
+				body.bestAttempt = this.getNodeParameter('bestAttempt', i) as boolean;
+			}
+			if ([ 'content', 'pdf', 'markdown'].includes(operation)) {
+				const rejectRequestPatternParam = this.getNodeParameter('rejectRequestPattern', i, []) as string[];
+				if (rejectRequestPatternParam.length > 0) {
+					body.rejectRequestPattern = rejectRequestPatternParam;
+				}
+			}
+			if ([ 'content', 'pdf'].includes(operation)) {
+				const rejectResourceTypesParam = this.getNodeParameter('rejectResourceTypes', i, []) as string[];
+				if (rejectResourceTypesParam.length > 0) {
+					body.rejectResourceTypes = rejectResourceTypesParam;
+				}
+			}
+			if ([ 'screenshot', 'pdf'].includes(operation)) {
+				const allowResourceTypesParam = this.getNodeParameter('allowResourceTypes', i, []) as string[];
+				if (allowResourceTypesParam.length > 0) {
+					body.allowResourceTypes = allowResourceTypesParam;
+				}
+				const allowRequestPatternParam = this.getNodeParameter('allowRequestPattern', i, []) as string[];
+				if (allowRequestPatternParam.length > 0) {
+					body.allowRequestPattern = allowRequestPatternParam;
+				}
+				const setExtraHTTPHeadersRaw = this.getNodeParameter('setExtraHTTPHeaders', i, '{}') as string;
+				// Parse JSON here. If it fails, the error will propagate.
+				const setExtraHTTPHeaders = JSON.parse(setExtraHTTPHeadersRaw);
+				if (Object.keys(setExtraHTTPHeaders).length > 0) {
+					body.setExtraHTTPHeaders = setExtraHTTPHeaders;
+				}
+				const emulateMediaType = this.getNodeParameter('emulateMediaType', i, '') as string;
+				if (emulateMediaType) body.emulateMediaType = emulateMediaType;
+			}
+			if ([ 'screenshot', 'snapshot'].includes(operation)) {
+				const screenshotOptionsParam = this.getNodeParameter('screenshotOptions', i, []) as any[];
+				if (screenshotOptionsParam.length > 0 && screenshotOptionsParam[0].screenshotItem) {
+					const opts = { ...screenshotOptionsParam[0].screenshotItem };
+					const clipParam = opts.clip; // Handle nested clip
+					if (clipParam && clipParam.length > 0 && clipParam[0].clipItem) {
+						opts.clip = clipParam[0].clipItem;
+					} else {
+						delete opts.clip; // Remove if empty
+					}
+					body.screenshotOptions = opts;
+				}
+				body.setJavaScriptEnabled = this.getNodeParameter('setJavaScriptEnabled', i) as boolean;
+			}
+			if (operation === 'screenshot') {
+				const selector = this.getNodeParameter('selector', i, '') as string;
+				if (selector) body.selector = selector;
+			}
+			if ([ 'screenshot', 'pdf', 'snapshot', 'content', 'links', 'scrape', 'markdown'].includes(operation)) {
+				const userAgent = this.getNodeParameter('userAgent', i, '') as string;
+				if (userAgent) body.userAgent = userAgent;
+			}
+
+			// Prepare HTTP Request options
+			const options: IHttpRequestOptions = {
+				url: baseURL + endpoint,
+				headers,
+				method: 'POST',
+				body,
+				encoding,
+				returnFullResponse: false, // We only need the body
+			};
+			// Explicitly set Content-Type for JSON requests
+			if (!encoding) {
+				options.headers = { ...options.headers, 'Content-Type': 'application/json' };
+			}
+
+			// Make the API call. Errors will propagate up.
+			// Cast helpers to 'any' to bypass the strict 'this' context type check.
+			let responseData = await this.helpers.httpRequestWithAuthentication.call(this, 'cloudflareApi', options);
+
+			// Process the successful response
+			let executionData: INodeExecutionData;
+			if (operation === 'pdf' || operation === 'screenshot') {
+				let mimeType = 'application/octet-stream';
+				let fileName = 'output';
+
+				if (operation === 'pdf') {
+					mimeType = 'application/pdf';
+					fileName = 'output.pdf';
+				} else {
+					const screenshotOptionsParam = this.getNodeParameter('screenshotOptions', i, []) as any[];
+					const format = (screenshotOptionsParam.length > 0 && screenshotOptionsParam[0].screenshotItem && screenshotOptionsParam[0].screenshotItem.type)
+						? screenshotOptionsParam[0].screenshotItem.type
+						: 'png';
+					mimeType = `image/${format}`;
+					fileName = `screenshot.${format}`;
+				}
+
+				const binaryData = await this.helpers.prepareBinaryData(responseData as any, fileName, mimeType);
+				executionData = {
+					json: {},
+					binary: { [this.getNodeParameter('binaryPropertyName', i, 'data') as string]: binaryData },
+				};
+			} else {
+				// Handle JSON responses
+				if (typeof responseData === 'string') {
+					// Parse JSON here. If it fails, the error will propagate.
+					responseData = JSON.parse(responseData);
+				}
+				executionData = { json: responseData as IDataObject };
+			}
+
+			returnData.push(executionData);
+		}
+
+		// Return the processed data for all items
+		// Using returnJsonArray helper as shown in tutorial, though [returnData] should also work.
+		return [returnData];
+	}
+}
