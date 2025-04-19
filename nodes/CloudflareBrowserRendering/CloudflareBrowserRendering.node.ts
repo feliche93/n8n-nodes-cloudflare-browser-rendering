@@ -142,7 +142,7 @@ const addScriptTagProperty: INodeProperties = {
 	displayName: 'Add Script Tag',
 	name: 'addScriptTag',
 	type: 'fixedCollection',
-	default: [{}],
+	default: [],
 	description: 'Inject custom JavaScript into the page.',
 	placeholder: 'Add Script',
 	typeOptions: {
@@ -187,7 +187,7 @@ const addStyleTagProperty: INodeProperties = {
 	displayName: 'Add Style Tag',
 	name: 'addStyleTag',
 	type: 'fixedCollection',
-	default: [{}],
+	default: [],
 	description: 'Inject custom CSS styles into the page.',
 	placeholder: 'Add Style',
 	typeOptions: {
@@ -227,6 +227,21 @@ const addStyleTagProperty: INodeProperties = {
 		],
 	},
 };
+
+// --- Reinstate and Correct Header Property ---
+// Use type: 'json' to allow user to input the object directly
+const setExtraHTTPHeadersProperty: INodeProperties = {
+	displayName: 'Set Extra HTTP Headers',
+	name: 'setExtraHTTPHeaders',
+	type: 'json', // <-- Changed to json
+	default: '{}', // Default to an empty JSON object string
+	description: 'Set extra HTTP headers as a JSON object (e.g., { "X-Custom": "Value" }).',
+	placeholder: '{\n  "X-Custom-Header": "Value",\n  "Authorization": "Bearer ..."\n}',
+	typeOptions: {
+		rows: 3, // Provide a few rows for the JSON editor
+	},
+};
+// --- End Header Property Definition ---
 
 const screenshotOptionsFields: INodeProperties[] = [
 	{
@@ -379,7 +394,8 @@ export class CloudflareBrowserRendering implements INodeType {
 									url: '={{ $parameter.source === "url" ? $parameter.url : undefined }}',
 									html: '={{ $parameter.source === "html" ? $parameter.htmlInput : undefined }}',
 									addStyleTag: '={{ $parameter.addStyleTag }}',
-									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders }}', // Add property later
+									addScriptTag: '={{ $parameter.addScriptTag }}',
+									setExtraHTTPHeaders: '={{ $parameter.setExtraHTTPHeaders ? JSON.parse($parameter.setExtraHTTPHeaders) : undefined }}', // Parse the JSON string
 									viewport: '={{ $parameter.viewport }}',
 									gotoOptions: '={{ $parameter.gotoOptions }}',
 									rejectResourceTypes: '={{ $parameter.rejectResourceTypes }}',
@@ -502,7 +518,7 @@ export class CloudflareBrowserRendering implements INodeType {
 				displayName: 'Elements to Scrape',
 				name: 'elements',
 				type: 'fixedCollection',
-				default: [{selector:''}],
+				default: [],
 				description: 'Define CSS selectors for elements to extract.',
 				placeholder: 'Add Selector',
 				displayOptions: { show: { operation: ['scrape'] } },
@@ -558,11 +574,10 @@ export class CloudflareBrowserRendering implements INodeType {
 			{ ...rejectRequestPatternProperty, displayOptions: { show: { operation: ['content', 'pdf', 'markdown'] } } },
 			{ ...addStyleTagProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
 			{ ...addScriptTagProperty, displayOptions: { show: { operation: ['screenshot', 'pdf', 'snapshot'] } } },
+			{ ...setExtraHTTPHeadersProperty, displayOptions: { show: { operation: ['pdf'] } } },
 
 		],
 	};
-
-	// No execute method needed in declarative style!
 }
 
 // Helper function if needed for complex transformations (not used in this basic version)
