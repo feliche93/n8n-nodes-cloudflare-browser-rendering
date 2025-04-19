@@ -81,7 +81,8 @@ export class CloudflareBrowserRendering implements INodeType {
 			baseURL:
 				'={{ `https://api.cloudflare.com/client/v4/accounts/${$credentials.accountId}/browser-rendering` }}',
 			headers: {
-				Authorization: '={{ `Bearer ${$credentials.apiToken}` }}',
+				// Use simpler expression syntax for Authorization header, similar to credential test
+				Authorization: '=Bearer {{$credentials.apiToken}}',
 				'Content-Type': 'application/json',
 			},
 			method: 'POST', // All operations use POST
